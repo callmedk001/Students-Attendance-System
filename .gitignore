@@ -1,0 +1,42 @@
+node_modules/
+
+.env
+.env.*
+!.env.example
+
+backend/.env
+frontend/.env
+
+dist/
+build/
+coverage/
+
+logs/
+*.log
+
+service-account*.json
+firebase-admin*.json
+
+*.dump
+*.bak
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+
+backend/scripts/local-seed/
+backend/local-data/
+
+# Firebase local files
+.firebase/
+.firebaserc.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS/editor files
+*.swp
+*.swo
+
