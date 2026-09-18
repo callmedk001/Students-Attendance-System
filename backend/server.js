@@ -30,13 +30,11 @@ import { ensureAdminBootstrap } from './services/adminBootstrap.js'
 const app = express()
 const port = process.env.PORT || 5000
 const host = process.env.HOST || '0.0.0.0'
+
 const allowedOrigins = [
   'http://localhost:5173',
   'https://student-attendance-porta-b6f44.web.app',
 ]
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
 
 app.use(cors({
   origin(origin, callback) {
