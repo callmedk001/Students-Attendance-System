@@ -105,12 +105,37 @@ export default function TakeAttendance() {
   }
 
   function parseRegisterNumbers(value) {
-    return [...new Set(value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean))]
+    return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean)
   }
 
-  function validateRegisterNumbers(registerNumbers, classLabel) {
-    const studentNumbers = new Set(students.map((student) => String(student.studentId)))
-    return registerNumbers.filter((registerNumber) => !studentNumbers.has(registerNumber)).map((registerNumber) => `Register number ${registerNumber} is not found in ${classLabel}.`)
+  function registerSuffix(value) {
+    const match = String(value || '').trim().match(/(\d+)$/)
+    return match ? Number(match[1]) : null
+  }
+
+  function resolveRegisterNumbers(registerNumbers, classLabel) {
+    const resolved = []
+    const normalizedValues = new Map()
+    const errors = []
+    registerNumbers.forEach((registerNumber) => {
+      const originalNumber = String(registerNumber)
+      const numericInput = /^\d+$/.test(originalNumber)
+      const normalizedValue = numericInput ? Number(originalNumber) : originalNumber.toUpperCase()
+      if (normalizedValues.has(normalizedValue)) return
+      normalizedValues.set(normalizedValue, originalNumber)
+      const matches = students.filter((student) => {
+        const storedNumber = String(student.studentId || '')
+        return numericInput ? registerSuffix(storedNumber) === normalizedValue : storedNumber.toUpperCase() === normalizedValue
+      })
+      if (!matches.length) {
+        errors.push(`Roll number ${originalNumber} is not found in ${classLabel}.`)
+      } else if (matches.length > 1 && numericInput) {
+        errors.push(`Roll number ${originalNumber} is ambiguous in ${classLabel}. Enter the full roll number.`)
+      } else {
+        resolved.push({ input: originalNumber, normalizedValue, studentId: matches[0]._id })
+      }
+    })
+    return { resolved, errors }
   }
 
   async function carryPreviousPresent() {
@@ -133,17 +158,17 @@ export default function TakeAttendance() {
     setError('')
     if (!form.date || !form.classId || !form.subjectId || !form.periodNumber) return setError('Complete every attendance session field.')
     if (!students.length) return setError('Select a section with at least one student.')
-    const absentNumbers = parseRegisterNumbers(absentRegisterNumbers)
-    const odNumbers = parseRegisterNumbers(odRegisterNumbers)
-    const overlap = absentNumbers.filter((registerNumber) => odNumbers.includes(registerNumber))
-    if (overlap.length) return setError(`Register number ${overlap[0]} cannot be listed as both Absent and OD.`)
     const selectedClass = classes.find((item) => item._id === form.classId)
     const classLabel = selectedClass ? `${selectedClass.department} ${selectedClass.section}` : 'the selected department and section'
-    const invalidNumbers = [...validateRegisterNumbers(absentNumbers, classLabel), ...validateRegisterNumbers(odNumbers, classLabel)]
-    if (invalidNumbers.length) return setError(invalidNumbers.join(' '))
-    const absentSet = new Set(absentNumbers)
-    const odSet = new Set(odNumbers)
-    const calculatedStatuses = Object.fromEntries(students.map((student) => [student._id, absentSet.has(String(student.studentId)) ? 'ABSENT' : odSet.has(String(student.studentId)) ? 'OD' : 'PRESENT']))
+    const absentResult = resolveRegisterNumbers(parseRegisterNumbers(absentRegisterNumbers), classLabel)
+    const odResult = resolveRegisterNumbers(parseRegisterNumbers(odRegisterNumbers), classLabel)
+    const absentIds = new Set(absentResult.resolved.map((entry) => entry.studentId))
+    const odIds = new Set(odResult.resolved.map((entry) => entry.studentId))
+    const conflicts = students.filter((student) => absentIds.has(student._id) && odIds.has(student._id))
+    if (conflicts.length) return setError(`Roll number ${conflicts[0].studentId} cannot be listed as both Absent and OD.`)
+    const inputErrors = [...absentResult.errors, ...odResult.errors]
+    if (inputErrors.length) return setError(inputErrors.join(' '))
+    const calculatedStatuses = Object.fromEntries(students.map((student) => [student._id, absentIds.has(student._id) ? 'ABSENT' : odIds.has(student._id) ? 'OD' : 'PRESENT']))
     setStatuses(calculatedStatuses)
 
     setSaving(true)
@@ -178,10 +203,10 @@ export default function TakeAttendance() {
           <label>Department & Section<select name="classId" value={form.classId} onChange={selectSection}><option value="">Select department and section</option>{classes.map((item) => <option key={item._id} value={item._id}>{item.department} {item.section} (Year {item.year})</option>)}</select></label>
           <label>Subject<select name="subjectId" value={form.subjectId} onChange={updateField} disabled={!form.classId}><option value="">Select subject</option>{subjects.map((item) => <option key={item._id} value={item._id}>{item.subjectName} ({item.subjectCode})</option>)}</select></label>
           <label>Period<select name="periodNumber" value={form.periodNumber} onChange={updateField}><option value="">Select period</option>{periodOptions.map((period) => <option key={period} value={period}>Period {period}</option>)}</select></label>
-          <label>Absent Register Numbers<textarea value={absentRegisterNumbers} onChange={(event) => setAbsentRegisterNumbers(event.target.value)} placeholder="101, 105, 112" rows="2" /></label>
-          <label>OD Register Numbers<textarea value={odRegisterNumbers} onChange={(event) => setOdRegisterNumbers(event.target.value)} placeholder="108, 115" rows="2" /></label>
+          <label>Absent Roll Numbers<textarea value={absentRegisterNumbers} onChange={(event) => setAbsentRegisterNumbers(event.target.value)} placeholder="101, 105, 112" rows="2" /></label>
+          <label>OD Roll Numbers<textarea value={odRegisterNumbers} onChange={(event) => setOdRegisterNumbers(event.target.value)} placeholder="108, 115" rows="2" /></label>
         </div>
-        <div className="attendance-toolbar"><label className="student-search">Search student<input type="search" placeholder="Search name or register number" value={search} onChange={(event) => setSearch(event.target.value)} /></label><div className="attendance-actions"><button type="button" className="button-secondary" onClick={markAllPresent} disabled={!students.length}>Mark All Present</button>{previousSessionId && <button type="button" className="button-secondary" onClick={carryPreviousPresent} disabled={carryingPrevious}>{carryingPrevious ? 'Loading previous...' : 'Carry Previous Period Present'}</button>}</div></div>
+        <div className="attendance-toolbar"><label className="student-search">Search student<input type="search" placeholder="Search name or roll number" value={search} onChange={(event) => setSearch(event.target.value)} /></label><div className="attendance-actions"><button type="button" className="button-secondary" onClick={markAllPresent} disabled={!students.length}>Mark All Present</button>{previousSessionId && <button type="button" className="button-secondary" onClick={carryPreviousPresent} disabled={carryingPrevious}>{carryingPrevious ? 'Loading previous...' : 'Carry Previous Period Present'}</button>}</div></div>
         <AttendanceSummary students={students} statuses={statuses} />
         {loadingSavedAttendance && <p className="health-message">Loading saved attendance...</p>}
         <StudentList students={visibleStudents} statusByStudent={statuses} onStatusChange={(id, status) => setStatuses((current) => ({ ...current, [id]: status }))} />

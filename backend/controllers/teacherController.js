@@ -91,7 +91,7 @@ function validateStudentInput(body) {
 
   if (!name) throw httpError(400, 'Name is required.')
   if (!username || !usernamePattern.test(username)) throw httpError(400, 'Username must use 2-30 letters, numbers, dots, underscores, or hyphens.')
-  if (!registerNumber) throw httpError(400, 'Register number is required.')
+  if (!registerNumber) throw httpError(400, 'Roll number is required.')
   if (!section) throw httpError(400, 'Section is required.')
   if (!department) throw httpError(400, 'Department is required.')
   if (!Number.isInteger(year) || year < 1) throw httpError(400, 'Year must be a valid positive number.')
@@ -236,7 +236,7 @@ export async function createManagedStudent(request, response, next) {
       throw httpError(409, 'Username already exists.')
     }
     const existingRegisterNumber = await Student.findOne({ $or: [{ studentId: input.registerNumber }, { rollNumber: input.registerNumber }] }).lean()
-    if (existingRegisterNumber) throw httpError(409, 'Register number already exists.')
+    if (existingRegisterNumber) throw httpError(409, 'Roll number already exists.')
 
     firebaseUser = await firebaseAdminAuth.createUser({
       email: internalAuthEmail(input.username),
@@ -309,7 +309,7 @@ export async function createManagedStudent(request, response, next) {
     if (mongoStudent) await Student.deleteOne({ _id: mongoStudent._id }).catch(() => { })
     if (mongoUser) await User.deleteOne({ _id: mongoUser._id }).catch(() => { })
     if (firebaseUser) await firebaseAdminAuth.deleteUser(firebaseUser.uid).catch(() => { })
-    if (error.code === 11000) return next(httpError(409, 'Username or register number already exists.'))
+    if (error.code === 11000) return next(httpError(409, 'Username or roll number already exists.'))
     return next(error)
   }
 }

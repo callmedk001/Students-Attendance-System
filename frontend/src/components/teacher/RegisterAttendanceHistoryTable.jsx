@@ -8,8 +8,8 @@ export default function RegisterAttendanceHistoryTable({ records }) {
   return (
     <div className="table-wrap">
       <table className="data-table">
-        <thead><tr><th>Date</th><th>Register Number</th><th>Status</th></tr></thead>
-        <tbody>{records.map((record) => <tr key={`${record.sessionId}-${record.studentId}`}><td>{displayDate(record.date)}</td><td>{record.registerNumber}</td><td><span className={`status-chip status-${record.status.toLowerCase()}`}>{record.status}</span></td></tr>)}</tbody>
+        <thead><tr><th>Date</th><th>Roll Number</th><th>Status</th></tr></thead>
+        <tbody>{records.map((record) => <tr key={`${record.sessionId}-${record.studentId}`}><td>{displayDate(record.date)}</td><td>{record.rollNumber}</td><td><span className={`status-chip status-${record.status.toLowerCase()}`}>{record.status}</span></td></tr>)}</tbody>
       </table>
     </div>
   )

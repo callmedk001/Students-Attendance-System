@@ -8,11 +8,11 @@ export default function StudentAttendanceTable({ records }) {
   return (
     <div className="table-wrap">
       <table className="data-table">
-        <thead><tr><th>Roll Number</th><th>Student ID</th><th>Student Name</th><th>Attendance Status</th></tr></thead>
+        <thead><tr><th>S.No</th><th>Roll Number</th><th>Student Name</th><th>Attendance Status</th></tr></thead>
         <tbody>
-          {records.map((record) => (
+          {records.map((record, index) => (
             <tr key={record._id}>
-              <td>{record.studentId?.rollNumber || '-'}</td>
+              <td>{index + 1}</td>
               <td>{record.studentId?.studentId || '-'}</td>
               <td>{record.studentId?.name || '-'}</td>
               <td><span className={statusClass(record.status)}>{record.status}</span></td>

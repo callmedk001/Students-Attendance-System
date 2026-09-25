@@ -6,7 +6,7 @@ import { getAttendanceHistory, getClasses, getSubjectsByClass } from '../../serv
 
 async function recordsForSessions(sessions) {
   const details = await Promise.all(sessions.map((session) => getAttendanceSession(session._id)))
-  return details.flatMap((result) => result.data.records.map((record) => ({ sessionId: result.data.session._id, date: result.data.session.date, registerNumber: record.studentId?.studentId || '-', status: record.status })))
+  return details.flatMap((result) => result.data.records.map((record) => ({ sessionId: result.data.session._id, studentId: record.studentId?._id || record.studentId, date: result.data.session.date, rollNumber: record.studentId?.studentId || '-', status: record.status })))
 }
 
 export default function AttendanceHistory() {

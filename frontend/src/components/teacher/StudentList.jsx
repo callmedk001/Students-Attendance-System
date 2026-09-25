@@ -8,12 +8,12 @@ export default function StudentList({ students, statusByStudent, onStatusChange 
     <div className="table-wrap">
       <table className="data-table">
         <thead>
-          <tr><th>Roll Number</th><th>Register Number</th><th>Student Name</th><th>Department & Section</th><th>Attendance Status</th></tr>
+          <tr><th>S.No</th><th>Roll Number</th><th>Student Name</th><th>Department & Section</th><th>Attendance Status</th></tr>
         </thead>
         <tbody>
           {students.map((student, index) => (
             <tr key={student._id}>
-              <td>{String(index + 1).padStart(2, '0')}</td>
+              <td>{index + 1}</td>
               <td>{student.studentId}</td>
               <td>{student.name}</td>
               <td>{student.department} {student.section}</td>

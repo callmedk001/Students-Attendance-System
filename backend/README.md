@@ -87,7 +87,7 @@ While Firebase credentials are absent, local development exposes the existing Mo
 - `GET/POST/PUT/DELETE /api/subjects`
 - `GET/POST/PUT/DELETE /api/teachers`
 - `GET/POST/PUT/DELETE /api/students`
-  Management uses IDs and relationships for classes, subjects, teachers, and students. Duplicate class/section combinations, subject codes, usernames, and register numbers are rejected. Classes and subjects are independent, and attendance selects from both current active lists. Delete operations deactivate records rather than removing attendance-related history. Demo teacher and student records contain no password field; authentication provisioning remains a later Firebase phase.
+  Management uses IDs and relationships for classes, subjects, teachers, and students. Duplicate class/section combinations, subject codes, usernames, and roll numbers are rejected. Classes and subjects are independent, and attendance selects from both current active lists. Delete operations deactivate records rather than removing attendance-related history. Demo teacher and student records contain no password field; authentication provisioning remains a later Firebase phase.
 
 The frontend uses Firebase Auth state persistence, loads the role from Firestore `users/{uid}`, attaches Firebase ID tokens to existing API calls, protects role-specific routes, and signs out through Firebase Auth.
 
