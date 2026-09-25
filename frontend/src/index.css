@@ -432,6 +432,17 @@ textarea:focus {
   width: 100%;
 }
 
+.attendance-history-matrix {
+  min-width: 820px;
+}
+
+.attendance-history-matrix th:first-child {
+  background: #fffdf8;
+  left: 0;
+  position: sticky;
+  z-index: 1;
+}
+
 .data-table th,
 .data-table td {
   border-bottom: 1px solid #d6e5d9;
