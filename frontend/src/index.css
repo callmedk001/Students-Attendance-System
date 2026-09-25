@@ -258,7 +258,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   background: #ffffff;
   border: 1px solid #b9d0c0;
   border-radius: 7px;
@@ -268,7 +269,8 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: #27805f;
   outline: 3px solid rgba(39, 128, 95, 0.15);
 }

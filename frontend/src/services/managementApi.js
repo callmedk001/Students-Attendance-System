@@ -1,6 +1,6 @@
 import api from './api'
 
-const paths = { departments: 'departments', classes: 'classes', subjects: 'subjects', teachers: 'teachers', students: 'students', assignments: 'assignments', timetables: 'timetables' }
+const paths = { departments: 'departments', classes: 'classes', subjects: 'subjects', teachers: 'teachers', students: 'students' }
 
 export async function listManaged(resource) { const response = await api.get(`/${paths[resource]}`); return response.data }
 export async function createManaged(resource, data) { const response = await api.post(`/${paths[resource]}`, data); return response.data }

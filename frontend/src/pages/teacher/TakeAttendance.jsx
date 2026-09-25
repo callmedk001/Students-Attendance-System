@@ -16,6 +16,8 @@ export default function TakeAttendance() {
   const [statuses, setStatuses] = useState({})
   const [attendanceSessionId, setAttendanceSessionId] = useState('')
   const [search, setSearch] = useState('')
+  const [absentRegisterNumbers, setAbsentRegisterNumbers] = useState('')
+  const [odRegisterNumbers, setOdRegisterNumbers] = useState('')
   const [form, setForm] = useState({ date: today, classId: '', subjectId: '', periodNumber: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -49,7 +51,7 @@ export default function TakeAttendance() {
             const previousHistory = await getAttendanceHistory({ date: form.date, classId: form.classId, subjectId: form.subjectId, periodNumber: Number(form.periodNumber) - 1 })
             previousId = previousHistory.data[0]?.sessionId || previousHistory.data[0]?._id || ''
           }
-          if (!cancelled) { setAttendanceSessionId(''); setPreviousSessionId(previousId); setStatuses({}) }
+          if (!cancelled) { setAttendanceSessionId(''); setPreviousSessionId(previousId); setStatuses({}); setAbsentRegisterNumbers(''); setOdRegisterNumbers('') }
           return
         }
         const sessionResult = await getAttendanceSession(existing.sessionId || existing._id)
@@ -57,6 +59,8 @@ export default function TakeAttendance() {
           setAttendanceSessionId(sessionResult.data.session._id)
           setPreviousSessionId('')
           setStatuses(Object.fromEntries(sessionResult.data.records.map((record) => [record.studentId?._id || record.studentId, record.status])))
+          setAbsentRegisterNumbers(sessionResult.data.records.filter((record) => record.status === 'ABSENT').map((record) => record.studentId?.studentId).join(', '))
+          setOdRegisterNumbers(sessionResult.data.records.filter((record) => record.status === 'OD').map((record) => record.studentId?.studentId).join(', '))
         }
       } catch (requestError) {
         if (!cancelled) setError(requestError.response?.data?.message || 'Unable to load saved attendance.')
@@ -74,6 +78,8 @@ export default function TakeAttendance() {
     setSubjects([])
     setStudents([])
     setStatuses({})
+    setAbsentRegisterNumbers('')
+    setOdRegisterNumbers('')
     setAttendanceSessionId('')
     setPreviousSessionId('')
     if (!classId) return
@@ -94,6 +100,17 @@ export default function TakeAttendance() {
 
   function markAllPresent() {
     setStatuses(Object.fromEntries(students.map((student) => [student._id, 'PRESENT'])))
+    setAbsentRegisterNumbers('')
+    setOdRegisterNumbers('')
+  }
+
+  function parseRegisterNumbers(value) {
+    return [...new Set(value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean))]
+  }
+
+  function validateRegisterNumbers(registerNumbers, classLabel) {
+    const studentNumbers = new Set(students.map((student) => String(student.studentId)))
+    return registerNumbers.filter((registerNumber) => !studentNumbers.has(registerNumber)).map((registerNumber) => `Register number ${registerNumber} is not found in ${classLabel}.`)
   }
 
   async function carryPreviousPresent() {
@@ -116,7 +133,18 @@ export default function TakeAttendance() {
     setError('')
     if (!form.date || !form.classId || !form.subjectId || !form.periodNumber) return setError('Complete every attendance session field.')
     if (!students.length) return setError('Select a section with at least one student.')
-    if (students.some((student) => !statuses[student._id])) return setError('Please mark attendance for all students.')
+    const absentNumbers = parseRegisterNumbers(absentRegisterNumbers)
+    const odNumbers = parseRegisterNumbers(odRegisterNumbers)
+    const overlap = absentNumbers.filter((registerNumber) => odNumbers.includes(registerNumber))
+    if (overlap.length) return setError(`Register number ${overlap[0]} cannot be listed as both Absent and OD.`)
+    const selectedClass = classes.find((item) => item._id === form.classId)
+    const classLabel = selectedClass ? `${selectedClass.department} ${selectedClass.section}` : 'the selected department and section'
+    const invalidNumbers = [...validateRegisterNumbers(absentNumbers, classLabel), ...validateRegisterNumbers(odNumbers, classLabel)]
+    if (invalidNumbers.length) return setError(invalidNumbers.join(' '))
+    const absentSet = new Set(absentNumbers)
+    const odSet = new Set(odNumbers)
+    const calculatedStatuses = Object.fromEntries(students.map((student) => [student._id, absentSet.has(String(student.studentId)) ? 'ABSENT' : odSet.has(String(student.studentId)) ? 'OD' : 'PRESENT']))
+    setStatuses(calculatedStatuses)
 
     setSaving(true)
     try {
@@ -132,7 +160,7 @@ export default function TakeAttendance() {
           if (!sessionId) throw requestError
         }
       }
-      await saveAttendanceRecords(sessionId, students.map((student) => ({ studentId: student._id, status: statuses[student._id] })))
+      await saveAttendanceRecords(sessionId, students.map((student) => ({ studentId: student._id, status: calculatedStatuses[student._id] })))
       navigate('/teacher/attendance-history', { replace: true, state: { message: 'Attendance saved successfully.' } })
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to save attendance.')
@@ -144,12 +172,14 @@ export default function TakeAttendance() {
   return (
     <main className="workspace-page">
       <div className="page-heading"><div><p className="eyebrow">Teacher workspace</p><h1>Take Attendance</h1></div><Link className="text-link" to="/teacher/dashboard">Back to dashboard</Link></div>
-      {loading ? <p className="health-message">Loading sections...</p> : error && !classes.length ? <section className="workspace-card"><p className="form-error" role="alert">{error}</p><p className="empty-state">No authorized sections are available. Confirm that your teacher account has an active section and subject assignment.</p></section> : <form onSubmit={saveAttendance} className="workspace-card">
+      {loading ? <p className="health-message">Loading sections...</p> : error && !classes.length ? <section className="workspace-card"><p className="form-error" role="alert">{error}</p><p className="empty-state">No authorized department and section choices are available. Confirm that your teacher account has an active section and subject access.</p></section> : <form onSubmit={saveAttendance} className="workspace-card">
         <div className="form-grid">
           <label>Date<input name="date" type="date" value={form.date} onChange={updateField} /></label>
-          <label>Section<select name="classId" value={form.classId} onChange={selectSection}><option value="">Select section</option>{classes.map((item) => <option key={item._id} value={item._id}>{item.section} ({item.department}, Year {item.year})</option>)}</select></label>
+          <label>Department & Section<select name="classId" value={form.classId} onChange={selectSection}><option value="">Select department and section</option>{classes.map((item) => <option key={item._id} value={item._id}>{item.department} {item.section} (Year {item.year})</option>)}</select></label>
           <label>Subject<select name="subjectId" value={form.subjectId} onChange={updateField} disabled={!form.classId}><option value="">Select subject</option>{subjects.map((item) => <option key={item._id} value={item._id}>{item.subjectName} ({item.subjectCode})</option>)}</select></label>
           <label>Period<select name="periodNumber" value={form.periodNumber} onChange={updateField}><option value="">Select period</option>{periodOptions.map((period) => <option key={period} value={period}>Period {period}</option>)}</select></label>
+          <label>Absent Register Numbers<textarea value={absentRegisterNumbers} onChange={(event) => setAbsentRegisterNumbers(event.target.value)} placeholder="101, 105, 112" rows="2" /></label>
+          <label>OD Register Numbers<textarea value={odRegisterNumbers} onChange={(event) => setOdRegisterNumbers(event.target.value)} placeholder="108, 115" rows="2" /></label>
         </div>
         <div className="attendance-toolbar"><label className="student-search">Search student<input type="search" placeholder="Search name or register number" value={search} onChange={(event) => setSearch(event.target.value)} /></label><div className="attendance-actions"><button type="button" className="button-secondary" onClick={markAllPresent} disabled={!students.length}>Mark All Present</button>{previousSessionId && <button type="button" className="button-secondary" onClick={carryPreviousPresent} disabled={carryingPrevious}>{carryingPrevious ? 'Loading previous...' : 'Carry Previous Period Present'}</button>}</div></div>
         <AttendanceSummary students={students} statuses={statuses} />

@@ -5,8 +5,6 @@ import Subject from '../models/Subject.js'
 import Teacher from '../models/Teacher.js'
 import Student from '../models/Student.js'
 import User from '../models/User.js'
-import Timetable from '../models/Timetable.js'
-import TeachingAssignment from '../models/TeachingAssignment.js'
 import { firebaseAdminAuth, firebaseAdminDb } from '../config/firebaseAdmin.js'
 
 const authDomain = 'auth.student-attendance.app'
@@ -23,23 +21,20 @@ function password(value, confirmation) { if (typeof value !== 'string' || value.
 function firebaseReady() { if (!firebaseAdminAuth || !firebaseAdminDb) throw error(503, 'Secure Firebase account management is not configured.') }
 function authEmail(userName) { return `${userName}@${authDomain}` }
 async function find(Model, value, label) { const result = await Model.findById(id(value, label)); if (!result) throw error(404, `${label} not found.`); return result }
-function departmentDto(item) { return { id: item._id, name: item.name, code: item.code, active: item.active } }
+function departmentDto(item, sections = []) { return { id: item._id, name: item.name, sections, active: item.active } }
 function classDto(item) { return { id: item._id, name: item.className, section: item.section, department: item.department, year: item.year, active: item.active } }
-function subjectDto(item) { return { id: item._id, name: item.subjectName, code: item.subjectCode, department: item.department, section: item.classId?.section || item.section, year: item.year, classId: item.classId?._id || item.classId, active: item.active } }
+function subjectDto(item) { return { id: item._id, name: item.subjectName, code: item.subjectCode, department: item.department, section: item.classId?.section || item.section, className: item.classId?.className, classSection: item.classId?.section || item.section, year: item.year, classId: item.classId?._id || item.classId, active: item.active } }
 function teacherDto(item) { return { id: item._id, name: item.name, username: item.userId?.username, department: item.department, active: item.active && item.userId?.status !== 'INACTIVE' } }
 function studentDto(item) { return { id: item._id, name: item.name, registerNumber: item.studentId, username: item.userId?.username, classId: item.classId?._id || item.classId, className: item.classId?.className, classSection: item.classId?.section, section: item.section, department: item.department, year: item.year, active: item.active && item.userId?.status !== 'INACTIVE' } }
-function assignmentDto(item) { return { id: item._id, teacherId: item.teacherId?._id || item.teacherId, teacher: item.teacherId?.name, classId: item.classId?._id || item.classId, className: item.classId?.className, classSection: item.classId?.section, subjectId: item.subjectId?._id || item.subjectId, subject: item.subjectId?.subjectCode || item.subjectId?.subjectName } }
-function timetableDto(item) { return { id: item._id, day: item.day, classId: item.classId?._id || item.classId, className: item.classId?.className, section: item.classId?.section, period: item.period, subjectId: item.subjectId?._id || item.subjectId, subject: item.subjectId?.subjectName || item.subjectId?.subjectCode, teacherId: item.teacherId?._id || item.teacherId, teacher: item.teacherId?.name, active: item.active } }
 function wrap(handler) { return async (request, response, next) => { try { await handler(request, response) } catch (caught) { next(caught) } } }
 
 export const getAdminDashboard = wrap(async (_request, response) => {
-  const [totalStudents, totalTeachers, totalClasses, totalSubjects, totalDepartments, totalTimetables, activeStudents, activeTeachers] = await Promise.all([
+  const [totalStudents, totalTeachers, totalClasses, totalSubjects, totalDepartments, activeStudents, activeTeachers] = await Promise.all([
     Student.countDocuments(),
     Teacher.countDocuments(),
     ClassModel.countDocuments(),
     Subject.countDocuments(),
     Department.countDocuments(),
-    Timetable.countDocuments(),
     Student.countDocuments({ active: true }),
     Teacher.countDocuments({ active: true }),
   ])
@@ -52,29 +47,58 @@ export const getAdminDashboard = wrap(async (_request, response) => {
       totalClasses,
       totalSubjects,
       totalDepartments,
-      totalTimetables,
       activeStudents,
       activeTeachers,
     },
   })
 })
 
-export const listDepartments = wrap(async (_request, response) => response.json({ success: true, data: (await Department.find().sort({ name: 1 })).map(departmentDto) }))
+export const listDepartments = wrap(async (_request, response) => {
+  const departments = await Department.find().sort({ name: 1 })
+  const classes = await ClassModel.find({ active: true }).select('department section year').sort({ department: 1, year: 1, section: 1 })
+  const data = departments.map((item) => {
+    const departmentSections = classes
+      .filter((classItem) => classItem.department === item.name)
+      .map((classItem) => ({ id: classItem._id, section: classItem.section, year: classItem.year }))
+    return departmentDto(item, departmentSections)
+  })
+  response.json({ success: true, data })
+})
+
+function sections(value) {
+  const values = Array.isArray(value) ? value : String(value || '').split(/[\n,]+/)
+  return [...new Set(values.map((item) => String(item).trim().toUpperCase()).filter(Boolean))]
+}
+
 export const createDepartment = wrap(async (request, response) => {
   const name = required(request.body.name, 'Department name').trim()
-  const code = required(request.body.code || request.body.name, 'Department code').trim().toUpperCase()
+  const sectionNames = sections(request.body.sections)
+  const year = positive(request.body.year, 'Year')
+  if (!sectionNames.length) throw error(400, 'At least one section is required.')
   if (await Department.exists({ name })) throw error(409, 'Department already exists.')
-  const item = await Department.create({ name, code, active: bool(request.body.active) })
-  response.status(201).json({ success: true, data: departmentDto(item) })
+  const item = await Department.create({ name, code: name.toUpperCase(), active: bool(request.body.active) })
+  await ClassModel.insertMany(sectionNames.map((section) => ({ className: `${name} ${section}`, department: name, section, year, semester: 1, active: true })))
+  response.status(201).json({ success: true, data: departmentDto(item, sectionNames.map((section) => ({ section, year }))) })
 })
 export const updateDepartment = wrap(async (request, response) => {
   const item = await find(Department, request.params.id, 'Department')
   const name = required(request.body.name ?? item.name, 'Department name').trim()
-  const code = required(request.body.code ?? item.code ?? name, 'Department code').trim().toUpperCase()
+  const sectionNames = sections(request.body.sections)
+  const year = positive(request.body.year ?? 1, 'Year')
   if (await Department.exists({ _id: { $ne: item._id }, name })) throw error(409, 'Department already exists.')
-  Object.assign(item, { name, code, active: bool(request.body.active) })
+  const existingClasses = await ClassModel.find({ department: item.name })
+  await Promise.all(existingClasses.map((classItem) => {
+    const active = sectionNames.includes(classItem.section) && classItem.year === year
+    classItem.department = name
+    classItem.className = `${name} ${classItem.section}`
+    classItem.active = active
+    return classItem.save()
+  }))
+  const existingSections = new Set(existingClasses.filter((classItem) => classItem.year === year).map((classItem) => classItem.section))
+  await ClassModel.insertMany(sectionNames.filter((section) => !existingSections.has(section)).map((section) => ({ className: `${name} ${section}`, department: name, section, year, semester: 1, active: true })))
+  Object.assign(item, { name, active: bool(request.body.active) })
   await item.save()
-  response.json({ success: true, data: departmentDto(item) })
+  response.json({ success: true, data: departmentDto(item, sectionNames.map((section) => ({ section, year }))) })
 })
 export const deleteDepartment = wrap(async (request, response) => {
   const item = await find(Department, request.params.id, 'Department')
@@ -83,7 +107,7 @@ export const deleteDepartment = wrap(async (request, response) => {
   response.json({ success: true, data: departmentDto(item) })
 })
 
-export const listClasses = wrap(async (_request, response) => response.json({ success: true, data: (await ClassModel.find().sort({ department: 1, year: 1, section: 1 })).map(classDto) }))
+export const listClasses = wrap(async (_request, response) => response.json({ success: true, data: (await ClassModel.find({ active: true }).sort({ department: 1, year: 1, section: 1 })).map(classDto) }))
 export const createClass = wrap(async (request, response) => {
   const department = required(request.body.department, 'Department'); const className = required(request.body.name || request.body.className, 'Class name'); const section = required(request.body.section, 'Section'); const year = positive(request.body.year, 'Year')
   if (await ClassModel.exists({ department, year, section })) throw error(409, 'Class and section combination already exists.')
@@ -96,18 +120,18 @@ export const updateClass = wrap(async (request, response) => {
 })
 export const deleteClass = wrap(async (request, response) => { const item = await find(ClassModel, request.params.id, 'Class'); item.active = false; await item.save(); response.json({ success: true, data: classDto(item) }) })
 
-export const listSubjects = wrap(async (_request, response) => response.json({ success: true, data: (await Subject.find().populate('classId', 'section').sort({ subjectCode: 1 })).map(subjectDto) }))
+export const listSubjects = wrap(async (_request, response) => response.json({ success: true, data: (await Subject.find().populate('classId', 'className section').sort({ subjectCode: 1 })).map(subjectDto) }))
 export const createSubject = wrap(async (request, response) => {
-  const subjectCode = required(request.body.code || request.body.subjectCode, 'Subject code').toUpperCase(); const subjectName = required(request.body.name || request.body.subjectName, 'Subject name'); const department = required(request.body.department, 'Department'); const section = required(request.body.section, 'Section').toUpperCase(); const year = positive(request.body.year, 'Year')
+  const subjectCode = required(request.body.code || request.body.subjectCode, 'Subject code').toUpperCase(); const subjectName = required(request.body.name || request.body.subjectName, 'Subject name'); const classModel = await find(ClassModel, request.body.classId, 'Department and section')
   if (await Subject.exists({ subjectCode })) throw error(409, 'Subject code already exists.')
-  const classModel = await ClassModel.findOne({ department, section, year, active: true }); if (!classModel) throw error(400, 'No active class matches the selected department, section, and year.')
-  const item = await Subject.create({ subjectCode, subjectName, department, year, classId: classModel._id, active: bool(request.body.active) }); await item.populate('classId', 'section'); response.status(201).json({ success: true, data: subjectDto(item) })
+  if (!classModel.active) throw error(400, 'The selected department and section is inactive.')
+  const item = await Subject.create({ subjectCode, subjectName, department: classModel.department, year: classModel.year, classId: classModel._id, active: bool(request.body.active) }); await item.populate('classId', 'className section'); response.status(201).json({ success: true, data: subjectDto(item) })
 })
 export const updateSubject = wrap(async (request, response) => {
-  const item = await find(Subject, request.params.id, 'Subject'); const subjectCode = required(request.body.code ?? request.body.subjectCode ?? item.subjectCode, 'Subject code').toUpperCase(); const department = required(request.body.department ?? item.department, 'Department'); const section = required(request.body.section ?? item.classId?.section ?? item.section, 'Section').toUpperCase(); const year = positive(request.body.year ?? item.year, 'Year')
+  const item = await find(Subject, request.params.id, 'Subject'); const subjectCode = required(request.body.code ?? request.body.subjectCode ?? item.subjectCode, 'Subject code').toUpperCase(); const classModel = request.body.classId ? await find(ClassModel, request.body.classId, 'Department and section') : await find(ClassModel, item.classId, 'Department and section')
   if (await Subject.exists({ _id: { $ne: item._id }, subjectCode })) throw error(409, 'Subject code already exists.')
-  const classModel = await ClassModel.findOne({ department, section, year, active: true }); if (!classModel) throw error(400, 'No active class matches the selected department, section, and year.')
-  Object.assign(item, { subjectCode, subjectName: required(request.body.name ?? request.body.subjectName ?? item.subjectName, 'Subject name'), department, year, classId: classModel._id, active: bool(request.body.active) }); await item.save(); await item.populate('classId', 'section'); response.json({ success: true, data: subjectDto(item) })
+  if (!classModel.active) throw error(400, 'The selected department and section is inactive.')
+  Object.assign(item, { subjectCode, subjectName: required(request.body.name ?? request.body.subjectName ?? item.subjectName, 'Subject name'), department: classModel.department, year: classModel.year, classId: classModel._id, active: bool(request.body.active) }); await item.save(); await item.populate('classId', 'className section'); response.json({ success: true, data: subjectDto(item) })
 })
 export const deleteSubject = wrap(async (request, response) => { const item = await find(Subject, request.params.id, 'Subject'); item.active = false; await item.save(); response.json({ success: true, data: subjectDto(item) }) })
 
@@ -141,7 +165,8 @@ export const deleteTeacher = wrap(async (request, response) => { const item = aw
 export const listStudents = wrap(async (_request, response) => response.json({ success: true, data: (await Student.find().populate('userId', 'username status').populate('classId', 'className section').sort({ name: 1 })).map(studentDto) }))
 export const createStudent = wrap(async (request, response) => {
   firebaseReady()
-  const name = required(request.body.name, 'Student name'); const registerNumber = required(request.body.registerNumber, 'Register number'); const userName = username(request.body.username); const userPassword = password(request.body.password, request.body.confirmPassword); const department = required(request.body.department, 'Department'); const section = required(request.body.section, 'Section').toUpperCase(); const year = positive(request.body.year, 'Year'); const classModel = await ClassModel.findOne({ department, section, year, active: true }); if (!classModel) throw error(400, 'No active class matches the selected department, section, and year.')
+  const name = required(request.body.name, 'Student name'); const registerNumber = required(request.body.registerNumber, 'Register number'); const userName = username(request.body.username); const userPassword = password(request.body.password, request.body.confirmPassword); const classModel = request.body.classId ? await find(ClassModel, request.body.classId, 'Department and section') : await ClassModel.findOne({ department: required(request.body.department, 'Department'), section: required(request.body.section, 'Section').toUpperCase(), year: positive(request.body.year, 'Year'), active: true }); if (!classModel || !classModel.active) throw error(400, 'No active department and section matches the selection.')
+  const department = classModel.department; const section = classModel.section; const year = classModel.year
   if (await User.exists({ username: userName })) throw error(409, 'Username already exists.'); if (await Student.exists({ studentId: registerNumber })) throw error(409, 'Register number already exists.')
   let firebaseUser; let user; let item
   try {
@@ -166,43 +191,4 @@ export const updateStudent = wrap(async (request, response) => {
   Object.assign(item, { name: required(request.body.name ?? item.name, 'Student name'), studentId: registerNumber, rollNumber: registerNumber, department, year, section, semester: classModel.semester, classId: classModel._id, active: isActive }); user.name = item.name; user.status = isActive ? 'ACTIVE' : 'INACTIVE'; await Promise.all([item.save(), user.save()]); await item.populate('userId', 'username status'); response.json({ success: true, data: studentDto(item) })
 })
 export const deleteStudent = wrap(async (request, response) => { const item = await find(Student, request.params.id, 'Student'); item.active = false; await item.save(); await User.updateOne({ _id: item.userId }, { status: 'INACTIVE' }); response.json({ success: true }) })
-
-export const listAssignments = wrap(async (_request, response) => response.json({ success: true, data: await TeachingAssignment.find().populate('teacherId', 'name employeeId').populate('classId', 'className section department year').populate('subjectId', 'subjectCode subjectName').sort({ createdAt: -1 }).then((items) => items.map(assignmentDto)) }))
-export const createAssignment = wrap(async (request, response) => {
-  const teacherId = id(request.body.teacherId, 'Teacher')
-  const classId = id(request.body.classId, 'Class')
-  const subjectId = id(request.body.subjectId, 'Subject')
-  const [teacher, classModel, subject] = await Promise.all([find(Teacher, teacherId, 'Teacher'), find(ClassModel, classId, 'Class'), find(Subject, subjectId, 'Subject')])
-  if (subject.classId && subject.classId.toString() !== classId) throw error(422, 'Subject does not belong to the selected class.')
-  const item = await TeachingAssignment.create({ teacherId, classId, subjectId })
-  await item.populate([{ path: 'teacherId', select: 'name employeeId' }, { path: 'classId', select: 'className section department year' }, { path: 'subjectId', select: 'subjectCode subjectName' }])
-  response.status(201).json({ success: true, data: assignmentDto(item) })
-})
-export const deleteAssignment = wrap(async (request, response) => { await TeachingAssignment.findByIdAndDelete(id(request.params.id, 'Assignment')); response.json({ success: true }) })
-
-export const listTimetables = wrap(async (_request, response) => response.json({ success: true, data: (await Timetable.find().populate('classId', 'className section department year').populate('subjectId', 'subjectCode subjectName').populate('teacherId', 'name employeeId').sort({ day: 1, period: 1 })).map(timetableDto) }))
-export const createTimetable = wrap(async (request, response) => {
-  const day = required(request.body.day, 'Day'); const classId = id(request.body.classId, 'Class'); const period = positive(request.body.period, 'Period'); const subjectId = id(request.body.subjectId, 'Subject'); const teacherId = id(request.body.teacherId, 'Teacher')
-  if (period > 8) throw error(400, 'Period must be between 1 and 8.')
-  const [classModel, subject, teacher] = await Promise.all([find(ClassModel, classId, 'Class'), find(Subject, subjectId, 'Subject'), find(Teacher, teacherId, 'Teacher')])
-  if (await Timetable.exists({ classId, day, period })) throw error(409, 'Class already has a subject assigned for this period.')
-  const item = await Timetable.create({ day, classId, period, subjectId, teacherId, active: bool(request.body.active) })
-  await item.populate([{ path: 'classId', select: 'className section department year' }, { path: 'subjectId', select: 'subjectCode subjectName' }, { path: 'teacherId', select: 'name employeeId' }])
-  response.status(201).json({ success: true, data: timetableDto(item) })
-})
-export const updateTimetable = wrap(async (request, response) => {
-  const item = await find(Timetable, request.params.id, 'Timetable')
-  const day = required(request.body.day ?? item.day, 'Day'); const classId = id(request.body.classId ?? item.classId, 'Class'); const period = positive(request.body.period ?? item.period, 'Period'); const subjectId = id(request.body.subjectId ?? item.subjectId, 'Subject'); const teacherId = id(request.body.teacherId ?? item.teacherId, 'Teacher')
-  if (period > 8) throw error(400, 'Period must be between 1 and 8.')
-  if (await Timetable.exists({ _id: { $ne: item._id }, classId, day, period })) throw error(409, 'Class already has a subject assigned for this period.')
-  Object.assign(item, { day, classId, period, subjectId, teacherId, active: bool(request.body.active) })
-  await item.save(); await item.populate([{ path: 'classId', select: 'className section department year' }, { path: 'subjectId', select: 'subjectCode subjectName' }, { path: 'teacherId', select: 'name employeeId' }])
-  response.json({ success: true, data: timetableDto(item) })
-})
-export const deleteTimetable = wrap(async (request, response) => {
-  const item = await find(Timetable, request.params.id, 'Timetable')
-  item.active = false
-  await item.save()
-  response.json({ success: true, data: timetableDto(item) })
-})
 

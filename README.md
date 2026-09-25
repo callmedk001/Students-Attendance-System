@@ -2,13 +2,13 @@
 
 ## Project
 
-A full-stack student attendance application with secure teacher/student workflows, realistic teaching assignments, reporting, and production deployment preparation.
+A full-stack student attendance application with secure teacher/student workflows, reporting, and production deployment preparation.
 
 ## Current Phase
 
 Phase 16 - Firebase Authentication and Firestore Integration
 
-Database models, authentication, teacher attendance management, student read-only reporting, assignment-scoped teacher access, validation hardening, responsive UI polish, and deployment preparation are complete.
+Database models, authentication, teacher attendance management, student read-only reporting, teacher access controls, validation hardening, responsive UI polish, and deployment preparation are complete.
 
 ## Technology
 
@@ -77,7 +77,7 @@ Student history is available at `/student/attendance`, with date, month, year, s
 
 The percentage formula is `(PRESENT + OD) / TOTAL CONDUCTED PERIODS * 100`. OD remains a separate stored status while counting as attendance.
 
-Teacher class and subject choices are backed by `TeachingAssignment` records. A teacher can only create attendance for assigned class and subject combinations.
+Teacher class and subject choices are backed by teacher access records. A teacher can only create attendance for authorized class and subject combinations.
 
 ## Deployment
 

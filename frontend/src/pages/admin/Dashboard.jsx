@@ -30,18 +30,14 @@ export default function AdminDashboard() {
           <div className="dashboard-actions">
             <Link to="/admin/students">Students</Link>
             <Link to="/admin/teachers">Teachers</Link>
-            <Link to="/admin/sections">Sections</Link>
             <Link to="/admin/departments">Departments</Link>
             <Link to="/admin/subjects">Subjects</Link>
-            <Link to="/admin/assignments">Assignments</Link>
-            <Link to="/admin/timetables">Timetable</Link>
           </div>
           <div className="summary-grid dashboard-summary">
             <div><span>Total Students</span><strong>{summary.totalStudents}</strong></div>
             <div><span>Total Teachers</span><strong>{summary.totalTeachers}</strong></div>
             <div><span>Total Sections</span><strong>{summary.totalClasses}</strong></div>
             <div><span>Total Subjects</span><strong>{summary.totalSubjects}</strong></div>
-            <div><span>Total Timetables</span><strong>{summary.totalTimetables}</strong></div>
             <div><span>Active Students</span><strong>{summary.activeStudents}</strong></div>
             <div><span>Active Teachers</span><strong>{summary.activeTeachers}</strong></div>
           </div>

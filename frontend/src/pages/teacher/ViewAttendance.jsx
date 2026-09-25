@@ -40,7 +40,7 @@ export default function ViewAttendance() {
           <h2>Attendance Session Details</h2>
           <dl className="details-grid">
             <div><dt>Date</dt><dd>{formatDate(session.date)}</dd></div>
-            <div><dt>Class</dt><dd>{session.classId?.className} - {session.classId?.section}</dd></div>
+            <div><dt>Department & Section</dt><dd>{session.classId?.department} {session.classId?.section}</dd></div>
             <div><dt>Subject</dt><dd>{session.subjectId?.subjectCode} - {session.subjectId?.subjectName}</dd></div>
             <div><dt>Period</dt><dd>{session.periodNumber}</dd></div>
             <div><dt>Teacher</dt><dd>{session.teacherId?.name || '-'}</dd></div>

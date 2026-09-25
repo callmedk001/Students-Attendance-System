@@ -6,7 +6,7 @@ import Subject from '../models/Subject.js'
 import Teacher from '../models/Teacher.js'
 import User from '../models/User.js'
 import { firebaseAdminAuth, firebaseAdminDb } from '../config/firebaseAdmin.js'
-import TeachingAssignment from '../models/TeachingAssignment.js'
+import TeacherAccess from '../models/TeacherAccess.js'
 
 const internalAuthDomain = 'auth.student-attendance.app'
 const usernamePattern = /^[a-z0-9](?:[a-z0-9._-]{0,28}[a-z0-9])$/
@@ -110,9 +110,9 @@ async function ensureTeacherClassAccess(teacherId, classId, subjectId) {
   ])
   if (!classModel) throw httpError(404, 'Class not found.')
   if (subjectId && !subject) throw httpError(404, 'Subject not found.')
-  const assignmentQuery = { teacherId, classId }
-  if (subjectId) assignmentQuery.subjectId = subjectId
-  if (!await TeachingAssignment.exists(assignmentQuery)) throw httpError(403, 'You are not assigned to this class and subject.')
+  const accessQuery = { teacherId, classId }
+  if (subjectId) accessQuery.subjectId = subjectId
+  if (!await TeacherAccess.exists(accessQuery)) throw httpError(403, 'You do not have access to this class and subject.')
   return { classModel, subject }
 }
 
@@ -165,7 +165,7 @@ export async function getProfile(request, response, next) {
 export async function getClasses(request, response, next) {
   try {
     const teacher = await getTeacherProfile(request.user.userId)
-    const classIds = await TeachingAssignment.find({ teacherId: teacher._id }).distinct('classId')
+    const classIds = await TeacherAccess.find({ teacherId: teacher._id }).distinct('classId')
     const classes = await ClassModel.find({ _id: { $in: classIds }, active: true })
       .select('_id className department year section semester')
       .sort({ department: 1, year: 1, section: 1 })
@@ -194,7 +194,7 @@ export async function getSubjectsByClass(request, response, next) {
     const { classId } = request.params
     const teacher = await getTeacherProfile(request.user.userId)
     await ensureTeacherClassAccess(teacher._id, classId)
-    const subjectIds = await TeachingAssignment.find({ teacherId: teacher._id, classId }).distinct('subjectId')
+    const subjectIds = await TeacherAccess.find({ teacherId: teacher._id, classId }).distinct('subjectId')
     const subjects = await Subject.find({ _id: { $in: subjectIds }, classId, active: true })
       .select('_id subjectCode subjectName classId department year')
       .sort({ subjectCode: 1, subjectName: 1 })
@@ -207,7 +207,7 @@ export async function getSubjectsByClass(request, response, next) {
 export async function getManagedStudents(request, response, next) {
   try {
     const teacher = await getTeacherProfile(request.user.userId)
-    const classIds = await TeachingAssignment.find({ teacherId: teacher._id }).distinct('classId')
+    const classIds = await TeacherAccess.find({ teacherId: teacher._id }).distinct('classId')
     const students = await Student.find({ active: true, classId: { $in: classIds } })
       .populate('userId', 'firebaseUid username status')
       .populate('classId', 'className section')

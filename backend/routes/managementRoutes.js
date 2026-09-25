@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { adminManagementAccess } from '../middleware/managementAccess.js'
-import { createAssignment, createClass, createDepartment, createStudent, createSubject, createTeacher, createTimetable, deleteAssignment, deleteClass, deleteDepartment, deleteStudent, deleteSubject, deleteTeacher, deleteTimetable, listAssignments, listClasses, listDepartments, listStudents, listSubjects, listTeachers, listTimetables, updateClass, updateDepartment, updateStudent, updateSubject, updateTeacher, updateTimetable } from '../controllers/managementController.js'
+import { createClass, createDepartment, createStudent, createSubject, createTeacher, deleteClass, deleteDepartment, deleteStudent, deleteSubject, deleteTeacher, listClasses, listDepartments, listStudents, listSubjects, listTeachers, updateClass, updateDepartment, updateStudent, updateSubject, updateTeacher } from '../controllers/managementController.js'
 
 const router = Router()
 router.use(adminManagementAccess)
@@ -25,12 +25,5 @@ router.get('/students', listStudents)
 router.post('/students', createStudent)
 router.put('/students/:id', updateStudent)
 router.delete('/students/:id', deleteStudent)
-router.get('/assignments', listAssignments)
-router.post('/assignments', createAssignment)
-router.delete('/assignments/:id', deleteAssignment)
-router.get('/timetables', listTimetables)
-router.post('/timetables', createTimetable)
-router.put('/timetables/:id', updateTimetable)
-router.delete('/timetables/:id', deleteTimetable)
 
 export default router

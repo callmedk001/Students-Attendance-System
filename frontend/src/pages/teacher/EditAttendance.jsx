@@ -59,7 +59,7 @@ export default function EditAttendance() {
       <form className="workspace-card" onSubmit={saveChanges}>
         <div className="form-grid">
           <label>Date<input name="date" type="date" value={form.date} onChange={updateField} /></label>
-          <label>Class<select name="classId" value={form.classId} onChange={changeClass}>{classes.map((item) => <option key={item._id} value={item._id}>{item.className} - {item.section}</option>)}</select></label>
+          <label>Department & Section<select name="classId" value={form.classId} onChange={changeClass}>{classes.map((item) => <option key={item._id} value={item._id}>{item.department} {item.section} (Year {item.year})</option>)}</select></label>
           <label>Subject<select name="subjectId" value={form.subjectId} onChange={updateField}><option value="">Select subject</option>{subjects.map((item) => <option key={item._id} value={item._id}>{item.subjectCode} - {item.subjectName}</option>)}</select></label>
           <label>Period<select name="periodNumber" value={form.periodNumber} onChange={updateField}>{periods.map((period) => <option key={period} value={period}>Period {period}</option>)}</select></label>
         </div>

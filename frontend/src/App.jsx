@@ -8,6 +8,7 @@ import StudentDashboard from './pages/student/Dashboard'
 import TeacherDashboard from './pages/teacher/Dashboard'
 import TakeAttendance from './pages/teacher/TakeAttendance'
 import AttendanceHistory from './pages/teacher/AttendanceHistory'
+import AttendancePercentage from './pages/teacher/AttendancePercentage'
 import EditAttendance from './pages/teacher/EditAttendance'
 import ViewAttendance from './pages/teacher/ViewAttendance'
 import StudentManagement from './pages/teacher/StudentManagement'
@@ -27,18 +28,15 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute role="ADMIN" />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/sections" element={<ManagementPage resource="classes" />} />
-          <Route path="/admin/classes" element={<ManagementPage resource="classes" />} />
           <Route path="/admin/departments" element={<ManagementPage resource="departments" />} />
           <Route path="/admin/subjects" element={<ManagementPage resource="subjects" />} />
           <Route path="/admin/teachers" element={<ManagementPage resource="teachers" />} />
           <Route path="/admin/students" element={<ManagementPage resource="students" />} />
-          <Route path="/admin/assignments" element={<ManagementPage resource="assignments" />} />
-          <Route path="/admin/timetables" element={<ManagementPage resource="timetables" />} />
         </Route>
         <Route element={<ProtectedRoute role="TEACHER" />}>
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
           <Route path="/teacher/take-attendance" element={<TakeAttendance />} />
+          <Route path="/teacher/attendance-percentage" element={<AttendancePercentage />} />
           <Route path="/teacher/attendance-history" element={<AttendanceHistory />} />
           <Route path="/teacher/attendance/:id" element={<ViewAttendance />} />
           <Route path="/teacher/attendance/:id/edit" element={<EditAttendance />} />

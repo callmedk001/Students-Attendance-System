@@ -111,7 +111,7 @@ Attendance sessions use a date, class, subject, and one of exactly eight periods
 
 Attendance history accepts `classId`, `subjectId`, `date`, `periodNumber`, `startDate`, and `endDate` query filters and returns newest sessions first. Session view responses include the session details and populated student records; edit requests remain limited to the authenticated teacher who owns the session.
 
-The server verifies the authenticated teacher profile and session ownership. Students receive `403` from teacher-only APIs. No Timetable model or fixed period schedule is used.
+The server verifies the authenticated teacher profile and session ownership. Students receive `403` from teacher-only APIs. Attendance uses the selected period without a fixed schedule.
 
 ## Student Attendance APIs
 

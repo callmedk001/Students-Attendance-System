@@ -78,7 +78,7 @@ export default function Login() {
           <label htmlFor="username">Username</label>
           <input id="username" name="username" type="text" autoComplete="username" placeholder="Enter your username" value={form.username} onChange={updateField} required />
           <label htmlFor="password">Password</label>
-          <PasswordField id="password" name="password" value={form.password} onChange={updateField} autoComplete="current-password" required />
+          <PasswordField id="password" name="password" value={form.password} placeholder="Enter your password" onChange={updateField} autoComplete="current-password" required />
           {error && <p className="form-error" role="alert">{error}</p>}
           <button type="submit" disabled={submitting || !hasFirebaseConfig}>{submitting ? 'Signing in...' : 'Login'}</button>
         </form>

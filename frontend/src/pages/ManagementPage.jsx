@@ -5,13 +5,10 @@ import PasswordField from '../components/PasswordField'
 import { createManaged, deleteManaged, listManaged, updateManaged } from '../services/managementApi'
 
 const resourceConfig = {
-  departments: { title: 'Departments', singular: 'Department', fields: [['name', 'Name'], ['code', 'Code']], formFields: [['name', 'Department name'], ['code', 'Department code']] },
-  classes: { title: 'Sections', singular: 'Section', classManagement: true, fields: [['department', 'Department'], ['section', 'Section'], ['year', 'Year', 'number']] },
-  subjects: { title: 'Subjects', singular: 'Subject', fields: [['name', 'Subject name'], ['code', 'Subject code'], ['department', 'Department'], ['section', 'Section'], ['year', 'Year', 'number']], formFields: [['name', 'Subject name'], ['code', 'Subject code'], ['department', 'Department'], ['section', 'Section', 'section'], ['year', 'Year', 'number']] },
+  departments: { title: 'Departments & Sections', singular: 'Department & Sections', fields: [['name', 'Department'], ['sections', 'Sections']], formFields: [['name', 'Department name'], ['sections', 'Sections (comma separated)', 'sections'], ['year', 'Year', 'number']] },
+  subjects: { title: 'Subjects', singular: 'Subject', fields: [['name', 'Subject name'], ['code', 'Subject code'], ['classId', 'Department & Section', 'class']], formFields: [['name', 'Subject name'], ['code', 'Subject code'], ['classId', 'Department & Section', 'class']] },
   teachers: { title: 'Teachers', singular: 'Teacher', fields: [['name', 'Teacher name'], ['username', 'Username'], ['department', 'Department']], formFields: [['name', 'Teacher name'], ['username', 'Username'], ['department', 'Department'], ['password', 'Password', 'password'], ['confirmPassword', 'Confirm password', 'password']] },
-  students: { title: 'Students', singular: 'Student', fields: [['name', 'Student name'], ['registerNumber', 'Register number'], ['username', 'Username'], ['section', 'Section'], ['department', 'Department'], ['year', 'Year', 'number']], formFields: [['name', 'Student name'], ['registerNumber', 'Register number'], ['username', 'Username'], ['section', 'Section', 'section'], ['department', 'Department'], ['year', 'Year', 'number'], ['password', 'Password', 'password'], ['confirmPassword', 'Confirm password', 'password']] },
-  assignments: { title: 'Assignments', singular: 'Assignment', fields: [['teacherId', 'Teacher', 'teacher'], ['classId', 'Section', 'class'], ['subjectId', 'Subject', 'subject']] },
-  timetables: { title: 'Timetable', singular: 'Timetable', fields: [['day', 'Day'], ['classId', 'Section', 'class'], ['period', 'Period', 'number'], ['subjectId', 'Subject', 'subject'], ['teacherId', 'Teacher', 'teacher']] },
+  students: { title: 'Students', singular: 'Student', fields: [['name', 'Student name'], ['registerNumber', 'Register number'], ['username', 'Username'], ['classId', 'Department & Section', 'class']], formFields: [['name', 'Student name'], ['registerNumber', 'Register number'], ['username', 'Username'], ['classId', 'Department & Section', 'class'], ['password', 'Password', 'password'], ['confirmPassword', 'Confirm password', 'password']] },
 }
 
 const blank = (resource) => ({ ...Object.fromEntries((resourceConfig[resource].formFields || resourceConfig[resource].fields).map(([name]) => [name, ''])), active: true })
@@ -33,10 +30,7 @@ export default function ManagementPage({ resource: resourceProp }) {
   const [message, setMessage] = useState('')
 
   async function loadData() {
-    const resources = resource === 'students' || resource === 'subjects' ? [resource, 'classes']
-      : resource === 'assignments' ? ['assignments', 'teachers', 'classes', 'subjects']
-      : resource === 'timetables' ? ['timetables', 'classes', 'subjects', 'teachers']
-      : resource === 'departments' ? ['departments']
+    const resources = resource === 'students' || resource === 'subjects' || resource === 'departments' ? [resource, 'classes']
       : [resource]
     const results = await Promise.all(resources.map((item) => listManaged(item)))
     const nextOptions = {}
@@ -58,14 +52,15 @@ export default function ManagementPage({ resource: resourceProp }) {
   }), [items, search, filters])
 
   function updateField(event) { setForm((current) => ({ ...current, [event.target.name]: event.target.value })) }
-  function startEdit(item) { const next = blank(resource); config.fields.forEach(([name]) => { next[name] = item[name] || '' }); next.active = item.active !== false; setForm(next); setEditingId(item.id); setShowForm(true); setError(''); setMessage('') }
+  function startEdit(item) { const next = blank(resource); config.fields.forEach(([name]) => { next[name] = name === 'sections' ? (item.sections || []).map((section) => section.section || section).join(', ') : item[name] || '' }); if (resource === 'departments') next.year = item.sections?.[0]?.year || ''; next.active = item.active !== false; setForm(next); setEditingId(item.id); setShowForm(true); setError(''); setMessage('') }
   function cancelEdit() { setForm(blank(resource)); setEditingId(''); setShowForm(false) }
-  function optionLabel(field, option) { if (field === 'classId') return `${option.name} - ${option.section}`; if (field === 'subjectId') return `${option.code} - ${option.name}`; return `${option.name} (${option.username})` }
-  function fieldOptions(type) { return type === 'class' ? options.classes : type === 'subject' ? options.subjects : type === 'teacher' ? options.teachers : ['A', 'B', 'C', 'D'].map((section) => ({ id: section, name: section })) }
+  function optionLabel(field, option) { if (field === 'classId') return `${option.department} ${option.section} (Year ${option.year})`; if (field === 'subjectId') return `${option.code} - ${option.name}`; return `${option.name} (${option.username})` }
+  function fieldOptions(type) { return type === 'class' ? options.classes : type === 'subject' ? options.subjects : type === 'teacher' ? options.teachers : [] }
   function displayValue(item, name) {
-    if (name === 'classId') return item.className ? `${item.className} - ${item.classSection}` : item.classId
+    if (name === 'classId') return item.department && item.classSection ? `${item.department} ${item.classSection}` : item.classId
     if (name === 'teacherId') return item.teacher || item.teacherId
     if (name === 'subjectId') return item.subject || item.subjectId
+    if (name === 'sections') return (item.sections || []).map((section) => `${section.section} (Year ${section.year})`).join(', ')
     if (name === 'section') return item.section
     return item[name]
   }
@@ -75,7 +70,7 @@ export default function ManagementPage({ resource: resourceProp }) {
   async function submit(event) {
     event.preventDefault(); setError(''); setMessage('')
     try {
-      const payload = config.classManagement ? { ...form, name: `${form.department} - ${form.section}` } : form
+      const payload = form
       await (editingId ? updateManaged(resource, editingId, payload) : createManaged(resource, payload))
       await loadData()
       setMessage(`${config.singular} ${editingId ? 'updated' : 'created'} successfully.`); cancelEdit()
@@ -94,6 +89,6 @@ export default function ManagementPage({ resource: resourceProp }) {
       <div className="filter-grid"><label>Search<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${config.title.toLowerCase()}`} /></label>{resource === 'students' && <><label>Filter section<select value={filters.classId} onChange={(event) => setFilters((current) => ({ ...current, classId: event.target.value }))}><option value="">All sections</option>{options.classes.map((item) => <option key={item.id} value={item.id}>{item.section} ({item.department}, Year {item.year})</option>)}</select></label><label>Department<input value={filters.department} onChange={(event) => setFilters((current) => ({ ...current, department: event.target.value }))} /></label><label>Year<input type="number" value={filters.year} onChange={(event) => setFilters((current) => ({ ...current, year: event.target.value }))} /></label></>}</div>
       {loading ? <p className="health-message">Loading {config.title.toLowerCase()}...</p> : <div className="table-wrap"><table className="data-table"><thead><tr>{config.fields.map(([name, label]) => <th key={name}>{label}</th>)}<th>Actions</th></tr></thead><tbody>{visibleItems.map((item) => <tr key={item.id}>{config.classManagement ? <><td>{item.department}</td><td>{item.section}</td><td>{classYear(item.year)}</td></> : config.fields.map(([name]) => <td key={name}>{displayValue(item, name)}</td>)}<td className="table-actions"><button type="button" className="button-secondary compact-button" onClick={() => startEdit(item)}>Edit</button><button type="button" className="button-secondary compact-button" onClick={() => removeItem(item)}>Delete</button></td></tr>)}</tbody></table>{!visibleItems.length && <p className="empty-state">No matching records.</p>}</div>}
     </section>
-    {showForm && <section className={`workspace-card${config.classManagement ? ' class-management' : ''}`}><div className="section-heading"><div><h2>{editingId ? 'Edit' : 'Add'} {config.singular}</h2></div><button type="button" className="button-secondary compact-button" onClick={cancelEdit}>Cancel</button></div><form onSubmit={submit}><div className="form-grid">{(config.formFields || config.fields).map(([name, label, type]) => <label key={name}>{label}{type === 'class' || type === 'subject' || type === 'teacher' || type === 'section' ? <select name={name} value={form[name]} onChange={updateField} required><option value="">Select {label.toLowerCase()}</option>{fieldOptions(type).map((item) => <option key={item.id} value={item.id}>{type === 'section' ? item.name : optionLabel(name, item)}</option>)}</select> : type === 'password' ? <PasswordField name={name} value={form[name]} onChange={updateField} required={!editingId} /> : <input name={name} type={type || 'text'} value={form[name]} onChange={updateField} required={!editingId || !['password', 'confirmPassword'].includes(name)} autoComplete={type === 'password' ? 'new-password' : undefined} />} </label>)}</div><div className="form-actions"><button type="submit" className="compact-button">{editingId ? 'Update' : 'Create'} {config.singular}</button></div></form></section>}
+    {showForm && <section className="workspace-card"><div className="section-heading"><div><h2>{editingId ? 'Edit' : 'Add'} {config.singular}</h2></div><button type="button" className="button-secondary compact-button" onClick={cancelEdit}>Cancel</button></div><form onSubmit={submit}><div className="form-grid">{(config.formFields || config.fields).map(([name, label, type]) => <label key={name}>{label}{type === 'class' || type === 'subject' || type === 'teacher' ? <select name={name} value={form[name]} onChange={updateField} required><option value="">Select {label.toLowerCase()}</option>{fieldOptions(type).map((item) => <option key={item.id} value={item.id}>{optionLabel(name, item)}</option>)}</select> : type === 'password' ? <PasswordField name={name} value={form[name]} onChange={updateField} required={!editingId} /> : <input name={name} type={type === 'sections' ? 'text' : type || 'text'} value={form[name]} onChange={updateField} required={!editingId || !['password', 'confirmPassword'].includes(name)} autoComplete={type === 'password' ? 'new-password' : undefined} />} </label>)}</div><div className="form-actions"><button type="submit" className="compact-button">{editingId ? 'Update' : 'Create'} {config.singular}</button></div></form></section>}
   </main>
 }

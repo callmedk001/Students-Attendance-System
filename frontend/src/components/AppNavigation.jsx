@@ -7,15 +7,13 @@ const adminLinks = [
   { to: '/admin/departments', label: 'Departments' },
   { to: '/admin/students', label: 'Students' },
   { to: '/admin/teachers', label: 'Teachers' },
-  { to: '/admin/sections', label: 'Sections' },
   { to: '/admin/subjects', label: 'Subjects' },
-  { to: '/admin/assignments', label: 'Assignments' },
-  { to: '/admin/timetables', label: 'Timetable' },
 ]
 
 const teacherLinks = [
   { to: '/teacher/dashboard', label: 'Dashboard', end: true },
   { to: '/teacher/take-attendance', label: 'Take Attendance' },
+  { to: '/teacher/attendance-percentage', label: 'Attendance Percentage' },
   { to: '/teacher/attendance-history', label: 'Attendance History' },
   { to: '/teacher/students', label: 'Students' },
 ]
