@@ -10,7 +10,7 @@ import { ensureTeacherClassAccess, getTeacherProfile, httpError } from './teache
 const statuses = ['PRESENT', 'ABSENT', 'OD']
 const sessionStatuses = ['ACTIVE', 'COMPLETED', 'CANCELLED']
 
-function parseDate(value) {
+export function parseDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw httpError(400, 'Date must use YYYY-MM-DD format.')
   }
@@ -19,7 +19,7 @@ function parseDate(value) {
   return date
 }
 
-function validatePeriod(value) {
+export function validatePeriod(value) {
   const period = Number(value)
   if (!Number.isInteger(period) || period < 1 || period > 8) {
     throw httpError(400, 'Period number must be between 1 and 8.')
@@ -27,7 +27,7 @@ function validatePeriod(value) {
   return period
 }
 
-function validateStatus(status) {
+export function validateStatus(status) {
   if (!statuses.includes(status)) throw httpError(400, 'Status must be PRESENT, ABSENT, or OD.')
 }
 

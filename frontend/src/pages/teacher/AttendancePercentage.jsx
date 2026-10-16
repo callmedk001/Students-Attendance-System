@@ -1,26 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getAttendanceSession } from '../../services/attendanceApi'
-import { getAttendanceHistory, getClasses, getStudentsByClass, getSubjectsByClass } from '../../services/teacherApi'
-
-function percentage(present, od, total) {
-  return total ? Number((((present + od) / total) * 100).toFixed(2)) : 0
-}
-
-function summarize(records, studentId) {
-  const selectedRecords = records.filter((record) => String(record.studentId?._id || record.studentId) === String(studentId))
-  const counts = selectedRecords.reduce((result, record) => {
-    result[record.status] += 1
-    return result
-  }, { PRESENT: 0, ABSENT: 0, OD: 0 })
-  const total = counts.PRESENT + counts.ABSENT + counts.OD
-  return { present: counts.PRESENT, absent: counts.ABSENT, od: counts.OD, total, percentage: percentage(counts.PRESENT, counts.OD, total) }
-}
-
-async function recordsForSessions(sessions) {
-  const details = await Promise.all(sessions.map((session) => getAttendanceSession(session._id)))
-  return details.flatMap((result) => result.data.records.map((record) => ({ ...record, date: result.data.session.date, sessionId: result.data.session._id })))
-}
+import { getAttendancePercentage, getClasses, getStudentsByClass, getSubjectsByClass } from '../../services/teacherApi'
 
 export default function AttendancePercentage() {
   const [classes, setClasses] = useState([])
@@ -33,12 +13,14 @@ export default function AttendancePercentage() {
   const [loading, setLoading] = useState(true)
   const [loadingReport, setLoadingReport] = useState(false)
   const [error, setError] = useState('')
+  const reportRequestId = useRef(0)
 
   useEffect(() => {
     getClasses().then((result) => setClasses(result.data)).catch(() => setError('Unable to load department and section choices.')).finally(() => setLoading(false))
   }, [])
 
   async function updateClass(event) {
+    reportRequestId.current += 1
     const classId = event.target.value
     setFilters((current) => ({ ...current, classId, subjectId: '' }))
     setSubjects([])
@@ -54,7 +36,21 @@ export default function AttendancePercentage() {
     } catch (_error) { setError('Unable to load the selected department and section.') }
   }
 
-  function updateFilter(event) { setFilters((current) => ({ ...current, [event.target.name]: event.target.value })) }
+  function updateFilter(event) {
+    reportRequestId.current += 1
+    setFilters((current) => ({ ...current, [event.target.name]: event.target.value }))
+    setRangeSummary(null)
+    setOverallSummary(null)
+    setError('')
+  }
+
+  function updateStudent(event) {
+    reportRequestId.current += 1
+    setStudentId(event.target.value)
+    setRangeSummary(null)
+    setOverallSummary(null)
+    setError('')
+  }
 
   async function loadReport(event) {
     event.preventDefault()
@@ -65,16 +61,25 @@ export default function AttendancePercentage() {
     if ((filters.startDate && !filters.endDate) || (!filters.startDate && filters.endDate)) return setError('Select both start and end dates.')
     if (filters.startDate && filters.endDate && filters.endDate < filters.startDate) return setError('End date must not be earlier than start date.')
     setLoadingReport(true)
+    const requestId = ++reportRequestId.current
     try {
-      const baseFilters = { classId: filters.classId, ...(filters.subjectId ? { subjectId: filters.subjectId } : {}) }
-      const [overallResult, rangeResult] = await Promise.all([
-        getAttendanceHistory(baseFilters),
-        getAttendanceHistory(filters.startDate ? { ...baseFilters, startDate: filters.startDate, endDate: filters.endDate } : baseFilters),
-      ])
-      const [overallRecords, rangeRecords] = await Promise.all([recordsForSessions(overallResult.data), recordsForSessions(rangeResult.data)])
-      setOverallSummary(summarize(overallRecords, studentId))
-      setRangeSummary(summarize(rangeRecords, studentId))
-    } catch (requestError) { setError(requestError.response?.data?.message || 'Unable to calculate attendance percentage.') } finally { setLoadingReport(false) }
+      const result = await getAttendancePercentage({
+        classId: filters.classId,
+        studentId,
+        ...(filters.subjectId ? { subjectId: filters.subjectId } : {}),
+        ...(filters.startDate ? { startDate: filters.startDate, endDate: filters.endDate } : {}),
+      })
+      if (requestId === reportRequestId.current) {
+        setOverallSummary(result.data.overall)
+        setRangeSummary(result.data.range)
+      }
+    } catch (requestError) {
+      if (requestId === reportRequestId.current) {
+        setError(requestError.response?.data?.message || 'Unable to calculate attendance percentage.')
+      }
+    } finally {
+      if (requestId === reportRequestId.current) setLoadingReport(false)
+    }
   }
 
   const selectedStudent = students.find((student) => String(student._id) === String(studentId))
@@ -89,7 +94,7 @@ export default function AttendancePercentage() {
         <form className="filter-grid" onSubmit={loadReport}>
           <label>Department & Section<select name="classId" value={filters.classId} onChange={updateClass} required><option value="">Select department and section</option>{classes.map((item) => <option key={item._id} value={item._id}>{item.department} {item.section} (Year {item.year})</option>)}</select></label>
           <label>Subject<select name="subjectId" value={filters.subjectId} onChange={updateFilter} disabled={!filters.classId}><option value="">All subjects</option>{subjects.map((item) => <option key={item._id} value={item._id}>{item.subjectCode} - {item.subjectName}</option>)}</select></label>
-          <label>Student<select value={studentId} onChange={(event) => setStudentId(event.target.value)} disabled={!students.length} required><option value="">Select student</option>{students.map((student) => <option key={student._id} value={student._id}>{student.studentId} - {student.name}</option>)}</select></label>
+          <label>Student<select value={studentId} onChange={updateStudent} disabled={!students.length} required><option value="">Select student</option>{students.map((student) => <option key={student._id} value={student._id}>{student.studentId} - {student.name}</option>)}</select></label>
           <label>Start Date<input name="startDate" type="date" value={filters.startDate} onChange={updateFilter} /></label>
           <label>End Date<input name="endDate" type="date" value={filters.endDate} onChange={updateFilter} /></label>
           <div className="filter-actions"><button type="submit" disabled={loadingReport}>{loadingReport ? 'Loading...' : 'View Attendance'}</button></div>

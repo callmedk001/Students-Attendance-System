@@ -39,5 +39,6 @@ attendanceSessionSchema.index(
   { date: 1, classId: 1, subjectId: 1, periodNumber: 1 },
   { unique: true },
 )
+attendanceSessionSchema.index({ teacherId: 1, classId: 1, subjectId: 1, date: -1 })
 
 export default mongoose.model('AttendanceSession', attendanceSessionSchema)

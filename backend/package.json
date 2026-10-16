@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "test": "node --test",
     "bootstrap:teacher": "node scripts/bootstrapTeacher.js",
     "provision:college": "node scripts/local-seed/provisionCollegeData.js"
   },
@@ -14,11 +15,17 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "firebase-admin": "^14.4.0",
+    "firebase-admin": "^14.5.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.9.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
+  },
+  "overrides": {
+    "proxy-addr": "^2.0.8",
+    "@grpc/grpc-js": "^1.14.5",
+    "qs": "^6.16.0",
+    "brace-expansion": "^2.1.7"
   }
 }

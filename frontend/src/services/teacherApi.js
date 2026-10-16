@@ -30,6 +30,11 @@ export async function getAttendanceHistory(filters = {}) {
   return response.data
 }
 
+export async function getAttendancePercentage(filters = {}) {
+  const response = await api.get('/teacher/attendance-percentage', { params: filters })
+  return response.data
+}
+
 export async function getManagedStudents() {
   const response = await api.get('/teacher/students')
   return response.data

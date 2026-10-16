@@ -9,13 +9,19 @@ npm install
 npm run dev
 ```
 
-The server runs on `http://localhost:5000` and exposes `GET /api/health`.
+Run the database-independent backend contract tests with:
+
+```bash
+npm test
+```
+
+The server runs on `http://localhost:5000` and exposes the lightweight `GET /health` process check. The existing diagnostic endpoint remains available at `GET /api/health`.
 
 ## MongoDB Setup
 
 Set `MONGODB_URI` and a private `JWT_SECRET` in `backend/.env`. The values are read from environment variables and are never logged. The server connects to MongoDB before it starts listening.
 
-Production also supports `NODE_ENV`, `HOST`, `PORT`, and comma-separated `CLIENT_URL` origins. The default cloud host is `0.0.0.0`; the deployment provider supplies `PORT`.
+Production supports `NODE_ENV`, `HOST`, `PORT`, and comma-separated `CLIENT_URL` origins. The default cloud host is `0.0.0.0`; the deployment provider supplies `PORT`. Localhost and the configured Firebase hosting origin remain allowed by default.
 
 Start the backend with:
 
@@ -27,7 +33,7 @@ npm run dev
 Successful startup logs `MongoDB connected successfully`. Verify the server with:
 
 ```text
-GET http://localhost:5000/api/health
+GET http://localhost:5000/health
 ```
 
 ## One-time teacher bootstrap
@@ -69,7 +75,7 @@ The current application login accepts a normalized username and password. The fr
 
 The backend verifies Firebase ID tokens when its Firebase Admin variables are configured, then links the verified UID or normalized username to an active MongoDB user profile. The `User.username` field has a sparse unique index and the same validation rules as the frontend, so a trusted provisioning process cannot create a duplicate username across roles. The verified Firebase UID, not a browser-supplied role, controls backend authorization.
 
-The backend exposes `/api/auth/resolve-username` for the Firebase username flow. It returns only a Firebase email identifier after checking the server-side `usernames/{username}` mapping and Firebase account state; it never handles or stores a password. The older `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout` routes remain for the staged legacy Mongo/JWT migration and are not used by the Firebase login. New accounts require a trusted server-side operation that creates the Firebase Auth user, Firestore `users/{uid}` and role profile, and linked Mongo profile. No public signup route or automatic test account is created here.
+The backend exposes `/api/auth/resolve-username` for the Firebase username flow. It returns only a Firebase email identifier after checking the server-side `usernames/{username}` mapping and Firebase account state; it never handles or stores a password. The older `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout` routes remain for the staged legacy Mongo/JWT migration and are not used by the Firebase login. The legacy registration route accepts only `TEACHER` and `STUDENT` roles; administrator accounts are provisioned through the trusted bootstrap flow. New Firebase accounts require a trusted server-side operation that creates the Firebase Auth user, Firestore `users/{uid}` and role profile, and linked Mongo profile. No public signup route or automatic test account is created here.
 
 There is no username password-reset flow. Because the Firebase identifier is not a real mailbox, the UI does not claim that username accounts can receive recovery email. Password changes must be handled by an approved operator process through Firebase Authentication.
 
@@ -130,4 +136,4 @@ Student endpoints are read-only. Students cannot create, edit, or delete attenda
 
 ## Production Deployment
 
-The root `render.yaml` defines a free Render web service for this backend. Configure these backend variables in the provider dashboard: `MONGODB_URI`, `JWT_SECRET`, and `CLIENT_URL`. `HOST`, `PORT`, and `NODE_ENV` are supplied by the blueprint/provider. Do not copy backend secrets into the frontend or commit them.
+The root `render.yaml` defines a Render Node web service for this backend; Docker is not required. Configure these backend variables in the provider dashboard: `MONGODB_URI`, `JWT_SECRET`, `CLIENT_URL`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY`. `HOST`, `PORT`, and `NODE_ENV` are supplied by the blueprint/provider. Do not copy backend secrets into the frontend or commit them.

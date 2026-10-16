@@ -1,21 +1,23 @@
+import { lazy, Suspense } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import AppNavigation from './components/AppNavigation'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
 import Login from './pages/Login'
-import StudentDashboard from './pages/student/Dashboard'
-import TeacherDashboard from './pages/teacher/Dashboard'
-import TakeAttendance from './pages/teacher/TakeAttendance'
-import AttendanceHistory from './pages/teacher/AttendanceHistory'
-import AttendancePercentage from './pages/teacher/AttendancePercentage'
-import EditAttendance from './pages/teacher/EditAttendance'
-import ViewAttendance from './pages/teacher/ViewAttendance'
-import StudentManagement from './pages/teacher/StudentManagement'
-import StudentAttendance from './pages/student/Attendance'
-import StudentSummary from './pages/student/Summary'
-import ManagementPage from './pages/ManagementPage'
-import AdminDashboard from './pages/admin/Dashboard'
+
+const StudentDashboard = lazy(() => import('./pages/student/Dashboard'))
+const TeacherDashboard = lazy(() => import('./pages/teacher/Dashboard'))
+const TakeAttendance = lazy(() => import('./pages/teacher/TakeAttendance'))
+const AttendanceHistory = lazy(() => import('./pages/teacher/AttendanceHistory'))
+const AttendancePercentage = lazy(() => import('./pages/teacher/AttendancePercentage'))
+const EditAttendance = lazy(() => import('./pages/teacher/EditAttendance'))
+const ViewAttendance = lazy(() => import('./pages/teacher/ViewAttendance'))
+const StudentManagement = lazy(() => import('./pages/teacher/StudentManagement'))
+const StudentAttendance = lazy(() => import('./pages/student/Attendance'))
+const StudentSummary = lazy(() => import('./pages/student/Summary'))
+const ManagementPage = lazy(() => import('./pages/ManagementPage'))
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'))
 
 function App() {
   const { user } = useAuth()
@@ -23,7 +25,8 @@ function App() {
   return (
     <>
       {user ? <AppNavigation /> : <header className="app-header public-header"><Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">SA</span><span>Student Attendance</span></Link><span className="phase-label">Secure access</span></header>}
-      <Routes>
+      <Suspense fallback={<main className="route-loading" aria-live="polite">Loading page...</main>}>
+        <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute role="ADMIN" />}>
@@ -48,7 +51,8 @@ function App() {
           <Route path="/student/attendance/summary" element={<StudentSummary />} />
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </>
   )
 }

@@ -3,6 +3,7 @@ import AttendanceRecord from '../models/AttendanceRecord.js'
 import AttendanceSession from '../models/AttendanceSession.js'
 import Student from '../models/Student.js'
 import Subject from '../models/Subject.js'
+import { percentage, summaryFromCounts } from '../utils/attendance.js'
 
 const statuses = ['PRESENT', 'ABSENT', 'OD']
 const internalAuthDomain = 'auth.student-attendance.app'
@@ -22,26 +23,13 @@ function parseDate(value, label) {
   return date
 }
 
-function percentage(present, od, total) {
-  return total ? Number((((present + od) / total) * 100).toFixed(2)) : 0
-}
-
-function summaryFromCounts(counts) {
-  const summary = { total: 0, present: 0, absent: 0, od: 0 }
-  for (const count of counts) {
-    summary[count._id.toLowerCase()] = count.count
-    summary.total += count.count
-  }
-  return { ...summary, percentage: percentage(summary.present, summary.od, summary.total) }
-}
-
 async function getStudentProfile(userId) {
   const student = await Student.findOne({ userId }).populate('userId', 'name email username role status').populate('classId', 'className department year section semester')
   if (!student) throw httpError(404, 'Student profile not found.')
   return student
 }
 
-function buildDateFilter(filters) {
+export function buildDateFilter(filters) {
   const { startDate, endDate, month, year } = filters
   let start
   let end
@@ -65,7 +53,7 @@ function buildDateFilter(filters) {
   return start || end ? { $gte: start || new Date(0), $lt: end || new Date('2999-12-31T00:00:00.000Z') } : null
 }
 
-function buildSessionQuery(filters) {
+export function buildSessionQuery(filters) {
   const query = {}
   const date = buildDateFilter(filters)
   if (date) query.date = date

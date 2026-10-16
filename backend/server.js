@@ -29,21 +29,30 @@ import { ensureAdminBootstrap } from './services/adminBootstrap.js'
 const app = express()
 const port = process.env.PORT || 5000
 const host = process.env.HOST || '0.0.0.0'
+const databaseRetryDelayMs = 30000
 
-const allowedOrigins = [
+const defaultAllowedOrigins = [
   'http://localhost:5173',
   'https://student-attendance-porta-b6f44.web.app',
 ]
+const allowedOrigins = new Set([
+  ...defaultAllowedOrigins,
+  ...(process.env.CLIENT_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+])
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.has(origin)) {
       return callback(null, true)
     }
     return callback(null, false)
   },
 }))
-app.use(express.json())
+app.use(express.json({ limit: '100kb' }))
+
+app.get('/health', (_request, response) => {
+  response.status(200).json({ status: 'ok' })
+})
 
 app.get('/api/health', (_request, response) => {
   response.json({
@@ -80,52 +89,78 @@ app.use((error, _request, response, _next) => {
   })
 })
 
-async function startServer() {
-  while (true) {
+async function connectAndBootstrap(retryConnection) {
+  try {
+    await connectDatabase()
     try {
-      await connectDatabase()
-      try {
-        await ensureAdminBootstrap()
-        console.log('Admin bootstrap check complete')
-      } catch (error) {
-        const message = String(error?.message || '')
-        if (message.includes('not configured') || message.includes('invalid FIREBASE_PRIVATE_KEY') || message.includes('private key')) {
-          console.warn('Admin bootstrap skipped: Firebase Admin is not configured or its service-account key is invalid in backend/.env.')
-        } else {
-          throw error
-        }
-      }
-
-      const server = app.listen(port, host, () => {
-        console.log(`Student Attendance API running on ${host}:${port}`)
-      })
-      server.on('error', (error) => {
-        if (error.code === 'EADDRINUSE') {
-          console.error(`Port ${port} is already in use.`)
-          console.error(`Find the process with: Get-NetTCPConnection -State Listen -LocalPort ${port}`)
-          console.error('Stop it only if it belongs to this project: Stop-Process -Id <PID>')
-        } else {
-          console.error(`Server failed to start: ${error.message}`)
-        }
-        process.exitCode = 1
-      })
-      return
+      await ensureAdminBootstrap()
+      console.log('Admin bootstrap check complete')
     } catch (error) {
       const message = String(error?.message || '')
-      const shouldRetry = message.includes('MongoDB Atlas rejected this machine IP address')
-        || message.includes('MongoDB network connection failed')
-
-      if (!shouldRetry) {
-        console.error(`Server startup aborted: ${message}`)
-        process.exitCode = 1
-        return
+      if (message.includes('not configured') || message.includes('invalid FIREBASE_PRIVATE_KEY') || message.includes('private key')) {
+        console.warn('Admin bootstrap skipped: Firebase Admin is not configured or its service-account key is invalid in backend/.env.')
+      } else {
+        throw error
       }
-
-      console.error(`Server startup delayed: ${message}`)
-      console.error('Retrying MongoDB connection in 5 seconds...')
-      await new Promise((resolve) => setTimeout(resolve, 5000))
     }
+  } catch (error) {
+    const message = String(error?.message || '')
+    const shouldRetry = message.includes('MongoDB Atlas rejected this machine IP address')
+      || message.includes('MongoDB network connection failed')
+
+    if (!shouldRetry) {
+      console.error(`Database startup incomplete: ${message}`)
+      return
+    }
+
+    console.error(`Database startup delayed: ${message}`)
+    retryConnection()
   }
 }
 
-startServer()
+export function startServer() {
+  let retryTimer
+  let closing = false
+
+  const retryConnection = () => {
+    if (retryTimer || closing) return
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined
+      void connectAndBootstrap(retryConnection)
+    }, databaseRetryDelayMs)
+    retryTimer.unref()
+    console.warn(`Retrying MongoDB connection in ${databaseRetryDelayMs / 1000} seconds...`)
+  }
+
+  const server = app.listen(port, host, () => {
+    console.log(`Student Attendance API running on ${host}:${port}`)
+    void connectAndBootstrap(retryConnection)
+  })
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use.`)
+      console.error(`Find the process with: Get-NetTCPConnection -State Listen -LocalPort ${port}`)
+      console.error('Stop it only if it belongs to this project: Stop-Process -Id <PID>')
+    } else {
+      console.error(`Server failed to start: ${error.message}`)
+    }
+    process.exitCode = 1
+  })
+
+  const shutdown = () => {
+    closing = true
+    if (retryTimer) clearTimeout(retryTimer)
+    server.close(() => {
+      void mongoose.disconnect()
+    })
+  }
+  process.once('SIGTERM', shutdown)
+  process.once('SIGINT', shutdown)
+  return server
+}
+
+export { app }
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  startServer()
+}

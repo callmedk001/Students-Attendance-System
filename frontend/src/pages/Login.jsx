@@ -5,7 +5,7 @@ import { hasFirebaseConfig } from '../lib/firebase'
 import PasswordField from '../components/PasswordField'
 
 export default function Login() {
-  const { isAuthenticated, login, user } = useAuth()
+  const { isAuthenticated, login, user, authError } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [form, setForm] = useState({ username: '', password: '' })
@@ -79,7 +79,7 @@ export default function Login() {
           <input id="username" name="username" type="text" autoComplete="username" placeholder="Enter your username" value={form.username} onChange={updateField} required />
           <label htmlFor="password">Password</label>
           <PasswordField id="password" name="password" value={form.password} placeholder="Enter your password" onChange={updateField} autoComplete="current-password" required />
-          {error && <p className="form-error" role="alert">{error}</p>}
+          {(error || authError) && <p className="form-error" role="alert">{error || authError}</p>}
           <button type="submit" disabled={submitting || !hasFirebaseConfig}>{submitting ? 'Signing in...' : 'Login'}</button>
         </form>
       </section>

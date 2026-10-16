@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 import { firebaseAdminAuth, firebaseAdminDb } from '../config/firebaseAdmin.js'
 
-const allowedRoles = ['ADMIN', 'TEACHER', 'STUDENT']
+const allowedRoles = ['TEACHER', 'STUDENT']
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passwordMinimumLength = 8
 const internalAuthDomain = 'auth.student-attendance.app'
@@ -42,6 +42,10 @@ function normalizeEmail(email) {
 
 function normalizeUsername(username) {
   return typeof username === 'string' ? username.trim().toLowerCase() : ''
+}
+
+function isAllowedRegistrationRole(role) {
+  return allowedRoles.includes(role)
 }
 
 export async function resolveUsername(request, response, next) {
@@ -111,7 +115,7 @@ export async function register(request, response, next) {
       return response.status(400).json({ success: false, message: `Password must be at least ${passwordMinimumLength} characters.` })
     }
 
-    if (!allowedRoles.includes(role)) {
+    if (!isAllowedRegistrationRole(role)) {
       return response.status(400).json({ success: false, message: 'Role must be TEACHER or STUDENT.' })
     }
 
@@ -188,4 +192,4 @@ export function logout(_request, response) {
   return response.json({ success: true, message: 'Logged out successfully.' })
 }
 
-export { publicUser }
+export { isAllowedRegistrationRole, normalizeEmail, normalizeUsername, publicUser }

@@ -1,10 +1,12 @@
 import mongoose from 'mongoose'
 import AttendanceSession from '../models/AttendanceSession.js'
+import AttendanceRecord from '../models/AttendanceRecord.js'
 import ClassModel from '../models/Class.js'
 import Student from '../models/Student.js'
 import Subject from '../models/Subject.js'
 import Teacher from '../models/Teacher.js'
 import User from '../models/User.js'
+import { summaryFromCounts } from '../utils/attendance.js'
 import { firebaseAdminAuth, firebaseAdminDb } from '../config/firebaseAdmin.js'
 import TeacherAccess from '../models/TeacherAccess.js'
 
@@ -324,6 +326,7 @@ export async function getAttendanceHistory(request, response, next) {
       if (!mongoose.isValidObjectId(classId)) throw httpError(400, 'Class ID is invalid.')
       query.classId = classId
     }
+
     if (subjectId) {
       if (!mongoose.isValidObjectId(subjectId)) throw httpError(400, 'Subject ID is invalid.')
       query.subjectId = subjectId
@@ -355,6 +358,56 @@ export async function getAttendanceHistory(request, response, next) {
       sessionId: session._id,
     }))
     return response.json({ success: true, data })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+export async function getAttendancePercentage(request, response, next) {
+  try {
+    const teacher = await getTeacherProfile(request.user.userId)
+    const { classId, subjectId, studentId, startDate, endDate, periodNumber } = request.query
+    if (!classId || !studentId) throw httpError(400, 'Class ID and student ID are required.')
+    if (!mongoose.isValidObjectId(studentId)) throw httpError(400, 'Student ID is invalid.')
+
+    await ensureTeacherClassAccess(teacher._id, classId, subjectId)
+    const student = await Student.findOne({ _id: studentId, classId }).select('_id')
+    if (!student) throw httpError(404, 'Student not found in the selected class.')
+
+    const sessionQuery = { teacherId: teacher._id, classId }
+    if (subjectId) {
+      if (!mongoose.isValidObjectId(subjectId)) throw httpError(400, 'Subject ID is invalid.')
+      sessionQuery.subjectId = subjectId
+    }
+    if (periodNumber !== undefined) {
+      const period = Number(periodNumber)
+      if (!Number.isInteger(period) || period < 1 || period > 8) throw httpError(400, 'Period number must be between 1 and 8.')
+      sessionQuery.periodNumber = period
+    }
+    const sessions = await AttendanceSession.find(sessionQuery).select('_id').lean()
+    const sessionIds = sessions.map((session) => session._id)
+    const countRecords = (ids) => AttendanceRecord.aggregate([
+      { $match: { studentId: student._id, sessionId: { $in: ids } } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ])
+    const counts = await countRecords(sessionIds)
+
+    let rangeCounts = counts
+    if (startDate || endDate) {
+      if (!startDate || !endDate) throw httpError(400, 'Start date and end date must be provided together.')
+      const range = { $gte: dateRange(startDate).$gte, $lt: dateRange(endDate).$lt }
+      if (range.$lt <= range.$gte) throw httpError(400, 'End date must not be earlier than start date.')
+      const rangeSessions = await AttendanceSession.find({ ...sessionQuery, date: range }).select('_id').lean()
+      rangeCounts = await countRecords(rangeSessions.map((session) => session._id))
+    }
+
+    return response.json({
+      success: true,
+      data: {
+        overall: summaryFromCounts(counts),
+        range: summaryFromCounts(rangeCounts),
+      },
+    })
   } catch (error) {
     return next(error)
   }

@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [firebaseUser, setFirebaseUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState('')
 
   useEffect(() => {
     if (!hasFirebaseConfig || !firebaseAuth) {
@@ -20,14 +21,21 @@ export function AuthProvider({ children }) {
       setFirebaseUser(nextFirebaseUser)
       if (!nextFirebaseUser) {
         setUser(null)
+        setAuthError('')
         setLoading(false)
         return
       }
 
       try {
         setUser(await getUserProfile(nextFirebaseUser))
-      } catch (_error) {
-        await signOutUser().catch(() => {})
+        setAuthError('')
+      } catch (error) {
+        setAuthError(error?.message || 'Unable to load your account profile.')
+        try {
+          await signOutUser()
+        } catch (signOutError) {
+          console.error('Unable to clear the invalid Firebase session.', signOutError)
+        }
         setFirebaseUser(null)
         setUser(null)
       } finally {
@@ -37,13 +45,19 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function login(credentials) {
+    setAuthError('')
     const { email } = await resolveUsername(credentials.username)
     try {
       const nextUser = await signIn({ ...credentials, email })
       setUser(nextUser)
       return nextUser
     } catch (error) {
-      await signOutUser().catch(() => {})
+      try {
+        await signOutUser()
+      } catch (signOutError) {
+        console.error('Unable to clear the failed Firebase login session.', signOutError)
+      }
+      setAuthError(error?.message || 'Unable to log in. Please try again.')
       throw error
     }
   }
@@ -55,7 +69,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, firebaseUser, loading, isAuthenticated: Boolean(user && firebaseUser), login, logout }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, authError, isAuthenticated: Boolean(user && firebaseUser), login, logout }}>
       {children}
     </AuthContext.Provider>
   )
