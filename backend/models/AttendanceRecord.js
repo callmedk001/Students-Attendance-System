@@ -32,5 +32,6 @@ attendanceRecordSchema.index(
   { unique: true },
 )
 attendanceRecordSchema.index({ studentId: 1, sessionId: 1 })
+attendanceRecordSchema.index({ studentId: 1, markedAt: -1 })
 
 export default mongoose.model('AttendanceRecord', attendanceRecordSchema)

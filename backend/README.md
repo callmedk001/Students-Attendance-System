@@ -121,8 +121,9 @@ The server verifies the authenticated teacher profile and session ownership. Stu
 
 ## Student Attendance APIs
 
-All endpoints below require a valid JWT and the `STUDENT` role. The student is always resolved from the authenticated JWT user through `Student.userId`; no frontend-supplied student ID controls access.
+All endpoints below require a valid Firebase ID token and the `STUDENT` role. The student is always resolved from the authenticated user through `Student.userId`; no frontend-supplied student ID controls access.
 
+- `GET /api/student/dashboard?month=<month>&year=<year>` returns the profile, overall/monthly summaries, subject/period breakdowns, and only the five most recent records for the initial dashboard load.
 - `GET /api/student/profile`
 - `GET /api/student/attendance`
 - `GET /api/student/attendance/summary`

@@ -1,6 +1,4 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,12 +17,18 @@ const app = hasFirebaseConfig
   ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
   : null
 
-export const firebaseAuth = app ? getAuth(app) : null
-export const firestore = app ? getFirestore(app) : null
+let authPromise
 
-export function requireFirebase() {
-  if (!firebaseAuth || !firestore) {
-    throw new Error('Firebase is not configured. Add the VITE_FIREBASE_* values to frontend/.env.')
+export function getFirebaseAuth() {
+  if (!app) return Promise.resolve(null)
+  authPromise ||= import('firebase/auth').then(({ getAuth }) => getAuth(app))
+  return authPromise
+}
+
+export async function requireFirebase() {
+  const firebaseAuth = await getFirebaseAuth()
+  if (!firebaseAuth) {
+    throw new Error('Firebase Authentication is not configured. Add the VITE_FIREBASE_* values to frontend/.env.')
   }
-  return { firebaseAuth, firestore }
+  return { firebaseAuth }
 }

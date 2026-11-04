@@ -7,11 +7,21 @@ export default function AdminDashboard() {
   const { user, logout } = useAuth()
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get('/admin/dashboard')
+    const controller = new AbortController()
+    api.get('/admin/dashboard', { signal: controller.signal })
       .then((response) => setSummary(response.data.data))
-      .catch((requestError) => setError(requestError.response?.data?.message || 'Unable to load admin dashboard.'))
+      .catch((requestError) => {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Unable to load admin dashboard.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
   }, [])
 
   return (
@@ -25,6 +35,7 @@ export default function AdminDashboard() {
         <button type="button" className="button-secondary" onClick={logout}>Logout</button>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
+      {loading && <p className="health-message" role="status">Loading dashboard...</p>}
       {summary && (
         <>
           <div className="dashboard-actions">

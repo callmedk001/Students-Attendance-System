@@ -1,7 +1,7 @@
 import api from './api'
 
-export async function getTeacherDashboard() {
-  const response = await api.get('/teacher/dashboard')
+export async function getTeacherDashboard(signal) {
+  const response = await api.get('/teacher/dashboard', { signal })
   return response.data
 }
 

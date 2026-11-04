@@ -7,15 +7,28 @@ export default function TeacherDashboard() {
   const { user, logout } = useAuth()
   const [dashboard, setDashboard] = useState(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getTeacherDashboard().then((result) => setDashboard(result.data)).catch((requestError) => setError(requestError.response?.data?.message || 'Unable to load teacher dashboard.'))
+    const controller = new AbortController()
+    getTeacherDashboard(controller.signal)
+      .then((result) => setDashboard(result.data))
+      .catch((requestError) => {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Unable to load teacher dashboard.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
   }, [])
 
   return (
     <main className="workspace-page">
       <div className="page-heading"><div><p className="eyebrow">Teacher workspace</p><h1>Teacher Dashboard</h1><p className="intro">Welcome, {dashboard?.teacher?.name || user.name}.</p></div><button type="button" className="button-secondary" onClick={logout}>Logout</button></div>
       {error && <p className="form-error" role="alert">{error}</p>}
+      {loading && <p className="health-message" role="status">Loading dashboard...</p>}
       {dashboard && <>
         <div className="dashboard-actions"><Link to="/teacher/take-attendance">Take Attendance</Link><Link to="/teacher/attendance-percentage">Attendance Percentage</Link><Link to="/teacher/attendance-history">Attendance History</Link><Link to="/teacher/students">Students</Link></div>
         <div className="summary-grid dashboard-summary"><div><span>Total Classes</span><strong>{dashboard.totalClasses}</strong></div><div><span>Total Subjects</span><strong>{dashboard.totalSubjects}</strong></div><div><span>Today's Sessions</span><strong>{dashboard.todaySessions.length}</strong></div><div><span>Recent Sessions</span><strong>{dashboard.recentSessions.length}</strong></div></div>

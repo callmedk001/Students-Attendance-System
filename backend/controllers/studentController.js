@@ -146,6 +146,57 @@ export async function getProfile(request, response, next) {
   } catch (error) { return next(error) }
 }
 
+export async function getDashboard(request, response, next) {
+  try {
+    const student = await getStudentProfile(request.user.userId)
+    const now = new Date()
+    const month = request.query.month ?? now.getMonth() + 1
+    const year = request.query.year ?? now.getFullYear()
+    const monthlyFilters = { month, year }
+    buildDateFilter(monthlyFilters)
+
+    const [summary, monthlyQuery, subjectGroups, periodGroups, recentRecords] = await Promise.all([
+      aggregateSummary({ studentId: student._id }),
+      scopedRecordQuery(student._id, monthlyFilters),
+      aggregateBy(student._id, {}, 'subjectId'),
+      aggregateBy(student._id, {}, 'periodNumber'),
+      AttendanceRecord.find({ studentId: student._id })
+        .populate({ path: 'sessionId', populate: [{ path: 'classId', select: 'className department year section semester' }, { path: 'subjectId', select: 'subjectCode subjectName' }] })
+        .sort({ markedAt: -1 })
+        .limit(5),
+    ])
+    const monthlySummary = await aggregateSummary(monthlyQuery)
+    const subjectIds = subjectGroups.map((group) => group._id)
+    const subjects = await Subject.find({ _id: { $in: subjectIds } }).select('subjectCode subjectName').lean()
+    const subjectMap = new Map(subjects.map((subject) => [subject._id.toString(), subject]))
+
+    return response.json({
+      success: true,
+      student: publicProfile(student),
+      summary,
+      monthly: { month: Number(month), year: Number(year), ...monthlySummary },
+      subjects: subjectGroups.map((group) => ({
+        subjectId: group._id,
+        subjectName: subjectMap.get(group._id.toString())?.subjectName || subjectMap.get(group._id.toString())?.subjectCode || 'Unknown subject',
+        total: group.total,
+        present: group.present,
+        absent: group.absent,
+        od: group.od,
+        percentage: percentage(group.present, group.od, group.total),
+      })),
+      periods: periodGroups.map((group) => ({
+        periodNumber: group._id,
+        total: group.total,
+        present: group.present,
+        absent: group.absent,
+        od: group.od,
+        percentage: percentage(group.present, group.od, group.total),
+      })),
+      records: recentRecords.map(formatRecord).filter(Boolean),
+    })
+  } catch (error) { return next(error) }
+}
+
 export async function getAttendance(request, response, next) {
   try {
     const student = await getStudentProfile(request.user.userId)

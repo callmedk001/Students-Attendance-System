@@ -1,6 +1,5 @@
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
-import { firebaseAuth, firestore, requireFirebase } from '../lib/firebase'
+import { getFirebaseAuth, requireFirebase } from '../lib/firebase'
+import api from './api'
 
 const allowedRoles = new Set(['ADMIN', 'TEACHER', 'STUDENT'])
 const usernamePattern = /^[a-z0-9](?:[a-z0-9._-]{0,28}[a-z0-9])$/
@@ -24,50 +23,41 @@ export function usernameToAuthIdentifier(username) {
 }
 
 export async function signIn(credentials) {
-  const { firebaseAuth: auth } = requireFirebase()
+  const { firebaseAuth: auth } = await requireFirebase()
+  const { signInWithEmailAndPassword } = await import('firebase/auth')
   const identifier = credentials.email || usernameToAuthIdentifier(credentials.username)
   const result = await signInWithEmailAndPassword(auth, identifier, credentials.password)
   return getUserProfile(result.user)
 }
 
-export function observeAuth(callback) {
-  requireFirebase()
-  return onAuthStateChanged(firebaseAuth, callback)
+export async function observeAuth(callback) {
+  const { firebaseAuth: auth } = await requireFirebase()
+  const { onAuthStateChanged } = await import('firebase/auth')
+  return onAuthStateChanged(auth, callback)
 }
 
 export async function signOutUser() {
-  const { firebaseAuth: auth } = requireFirebase()
+  const { firebaseAuth: auth } = await requireFirebase()
+  const { signOut } = await import('firebase/auth')
   await signOut(auth)
 }
 
 export async function getUserProfile(firebaseUser) {
-  if (!firestore || !firebaseUser) throw new Error('Authenticated Firebase user is unavailable.')
+  if (!firebaseUser || !await getFirebaseAuth()) throw new Error('Authenticated Firebase user is unavailable.')
 
-  try {
-    const snapshot = await getDoc(doc(firestore, 'users', firebaseUser.uid))
-    if (!snapshot.exists()) throw new Error('Your account profile has not been configured yet.')
+  const response = await api.get('/auth/me')
+  const profile = response.data.user
+  const profileUsername = validateUsername(profile.username)
+  if (!allowedRoles.has(profile.role)) throw new Error('Your account has an unauthorized role.')
+  if (profile.status !== 'ACTIVE') throw new Error('Your account is unavailable.')
+  if (firebaseUser.email !== usernameToAuthIdentifier(profileUsername)) throw new Error('Your username profile does not match your authentication account.')
 
-    const profile = snapshot.data()
-    if (profile.uid !== firebaseUser.uid) throw new Error('Your account profile is invalid.')
-    if (!allowedRoles.has(profile.role)) throw new Error('Your account has an unauthorized role.')
-    if (profile.active === false) throw new Error('Your account is unavailable.')
-    const profileUsername = validateUsername(profile.username)
-    if (firebaseUser.email !== usernameToAuthIdentifier(profileUsername)) throw new Error('Your username profile does not match your authentication account.')
-
-    return {
-      id: firebaseUser.uid,
-      uid: firebaseUser.uid,
-      name: profile.name || firebaseUser.displayName || profileUsername,
-      username: profileUsername,
-      role: profile.role,
-      status: 'ACTIVE',
-    }
-  } catch (error) {
-    if (error?.code === 'permission-denied') {
-      const permissionError = new Error('Authentication succeeded, but Firestore profile access is blocked. Deploy the Firestore rules from firestore.rules and retry.')
-      permissionError.code = 'permission-denied'
-      throw permissionError
-    }
-    throw error
+  return {
+    id: firebaseUser.uid,
+    uid: firebaseUser.uid,
+    name: profile.name || firebaseUser.displayName || profileUsername,
+    username: profileUsername,
+    role: profile.role,
+    status: profile.status,
   }
 }

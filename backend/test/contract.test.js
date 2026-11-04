@@ -57,6 +57,15 @@ test('reports database readiness in diagnostic health endpoint', async () => {
   assert.equal(payload.mongodb, false)
 })
 
+test('protects the student dashboard endpoint', async () => {
+  const response = await requestApp('/api/student/dashboard')
+  assert.equal(response.statusCode, 401)
+  assert.deepEqual(JSON.parse(response.body), {
+    success: false,
+    message: 'Authentication required.',
+  })
+})
+
 test('normalizes login identifiers and rejects admin self-registration', () => {
   assert.equal(normalizeUsername('  Teacher.One '), 'teacher.one')
   assert.equal(normalizeEmail('  USER@EXAMPLE.COM '), 'user@example.com')
@@ -109,6 +118,10 @@ test('builds subject, period, date, and status-safe attendance filters', () => {
   })
   assert.equal(sessionQuery.subjectId, '507f1f77bcf86cd799439011')
   assert.equal(sessionQuery.periodNumber, 2)
+  assert.deepEqual(buildDateFilter({ month: '10', year: '2026' }), {
+    $gte: new Date('2026-10-01T00:00:00.000Z'),
+    $lt: new Date('2026-11-01T00:00:00.000Z'),
+  })
   assert.throws(() => buildSessionQuery({ periodNumber: '9' }), /between 1 and 8/)
   assert.throws(() => buildDateFilter({ startDate: '2026-10-11', endDate: '2026-10-01' }), /must not be earlier/)
 })

@@ -19,6 +19,7 @@ function publicUser(user) {
   return {
     id: user._id.toString(),
     name: user.name,
+    username: user.username,
     email: publicEmail(user.email),
     role: user.role,
     status: user.status,

@@ -95,7 +95,7 @@ The existing Express/Mongo email and JWT endpoints are retained only for staged 
 
 ## 7. Security files
 
-`firestore.rules` denies profile and authorization writes from clients. Attendance writes remain denied directly in Firestore; the current attendance API continues to enforce MongoDB authorization. `firestore.indexes.json` is intentionally empty because the current Firebase client integration performs only a direct `users/{uid}` profile lookup.
+`firestore.rules` denies profile and authorization writes from clients. Attendance writes remain denied directly in Firestore; the current attendance API continues to enforce MongoDB authorization. `firestore.indexes.json` is intentionally empty. The frontend authenticates with Firebase Authentication and loads the linked profile through the authenticated Express `/api/auth/me` endpoint; Firebase Admin and Firestore rules continue to protect server-side role and account-management operations.
 
 Before allowing direct Firestore attendance access, implement and test assignment-scoped Rules or trusted Cloud Functions using the final document IDs and ownership model. Never replace the denied rules with `allow read, write: if true`.
 

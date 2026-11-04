@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import StudentStatsTable from '../../components/student/StudentStatsTable'
 import StudentSummaryCards from '../../components/student/StudentSummaryCards'
 import StudentAttendanceTable from '../../components/student/StudentAttendanceTable'
-import { getMonthlyAttendance, getPeriodAttendance, getStudentAttendance, getStudentAttendanceSummary, getStudentProfile, getSubjectAttendance } from '../../services/studentApi'
+import { getMonthlyAttendance, getStudentDashboard } from '../../services/studentApi'
 import { useAuth } from '../../context/AuthContext'
 
 export default function StudentDashboard() {
@@ -20,17 +20,50 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true)
   const [monthlyLoading, setMonthlyLoading] = useState(true)
   const [error, setError] = useState('')
+  const loadedMonth = useRef({ month, year })
 
   useEffect(() => {
-    Promise.all([getStudentProfile(), getStudentAttendanceSummary(), getSubjectAttendance(), getPeriodAttendance(), getStudentAttendance()])
-      .then(([profileResult, summaryResult, subjectResult, periodResult, attendanceResult]) => { setProfile(profileResult.student); setSummary(summaryResult.summary); setSubjects(subjectResult.subjects); setPeriods(periodResult.periods); setRecentRecords(attendanceResult.records.slice(0, 5)) })
-      .catch((requestError) => setError(requestError.response?.data?.message || 'Unable to load student attendance.'))
-      .finally(() => setLoading(false))
+    const controller = new AbortController()
+    getStudentDashboard(month, year, controller.signal)
+      .then((result) => {
+        setProfile(result.student)
+        setSummary(result.summary)
+        setMonthly(result.monthly)
+        setSubjects(result.subjects)
+        setPeriods(result.periods)
+        setRecentRecords(result.records)
+      })
+      .catch((requestError) => {
+        if (!controller.signal.aborted) {
+          setError(requestError.response?.data?.message || 'Unable to load student attendance.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+          setMonthlyLoading(false)
+        }
+      })
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {
+    if (loadedMonth.current.month === month && loadedMonth.current.year === year) return undefined
+    loadedMonth.current = { month, year }
+    const controller = new AbortController()
     setMonthlyLoading(true)
-    getMonthlyAttendance(month, year).then((result) => setMonthly(result)).catch(() => { setMonthly(null); setError('Unable to load monthly attendance.') }).finally(() => setMonthlyLoading(false))
+    getMonthlyAttendance(month, year, controller.signal)
+      .then((result) => setMonthly(result))
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setMonthly(null)
+          setError('Unable to load monthly attendance.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setMonthlyLoading(false)
+      })
+    return () => controller.abort()
   }, [month, year])
 
   const years = Array.from({ length: 5 }, (_item, index) => now.getFullYear() - index)
