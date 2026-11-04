@@ -38,8 +38,7 @@ function firebaseEmail(username) {
 
 export async function ensureAdminBootstrap() {
   const username = validateUsername(process.env.ADMIN_USERNAME || requiredEnv('ADMIN_USERNAME'))
-  const password = validatePassword(process.env.ADMIN_PASSWORD || requiredEnv('ADMIN_PASSWORD'))
-  const displayName = (process.env.ADMIN_NAME || requiredEnv('ADMIN_NAME')).trim()
+  let displayName = process.env.ADMIN_NAME?.trim() || ''
 
   if (!firebaseAdminAuth || !firebaseAdminDb) {
     throw new Error('Firebase Admin is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in backend/.env.')
@@ -82,6 +81,8 @@ export async function ensureAdminBootstrap() {
   }
 
   if (!uid) {
+    const password = validatePassword(process.env.ADMIN_PASSWORD || requiredEnv('ADMIN_PASSWORD'))
+    displayName ||= requiredEnv('ADMIN_NAME')
     firebaseUser = await firebaseAdminAuth.createUser({ email, password, displayName })
     uid = firebaseUser.uid
     createdFirebaseUser = true
@@ -115,7 +116,7 @@ export async function ensureAdminBootstrap() {
     }
   } else {
     await User.create({
-      name: displayName,
+      name: displayName || firebaseUser.displayName || username,
       username,
       email,
       firebaseUid: uid,
@@ -151,7 +152,7 @@ export async function ensureAdminBootstrap() {
     username,
     role: 'ADMIN',
     active: true,
-    name: userProfile?.name || displayName,
+    name: userProfile?.name || displayName || mongoUser?.name || firebaseUser.displayName || username,
     email,
     createdAt: userProfile?.createdAt || now,
     updatedAt: now,
