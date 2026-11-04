@@ -19,16 +19,7 @@ export async function authenticate(request, response, next) {
     }
 
     const payload = await firebaseAdminAuth.verifyIdToken(token)
-    const username = payload.email?.endsWith('@auth.student-attendance.app')
-      ? payload.email.slice(0, -'@auth.student-attendance.app'.length)
-      : null
-    const user = await User.findOne({
-      $or: [
-        { firebaseUid: payload.uid },
-        ...(username ? [{ username: username.toLowerCase() }] : []),
-        ...(payload.email ? [{ email: payload.email.toLowerCase() }] : []),
-      ],
-    })
+    const user = await User.findOne({ firebaseUid: payload.uid })
     if (!user || user.status !== 'ACTIVE' || !allowedRoles.has(user.role)) {
       return response.status(401).json({ success: false, message: 'Firebase account is not linked to an active application profile.' })
     }

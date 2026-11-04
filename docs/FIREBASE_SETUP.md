@@ -31,7 +31,7 @@ FIREBASE_PRIVATE_KEY=
 
 Use the service-account values from a secure server deployment mechanism. If `FIREBASE_PRIVATE_KEY` is stored as an environment variable, preserve escaped newlines as `\\n`. Never commit these values or place them in Vite variables.
 
-The backend links a verified Firebase token to the existing MongoDB `User` by `firebaseUid` when provisioned, with normalized Firebase identifier fallback for staged migration, and requires an active profile. The legacy JWT path remains available during staged migration. The backend still requires `MONGODB_URI` and existing application configuration until the data migration is deliberately completed.
+The backend links a verified Firebase token to the existing MongoDB `User` only by the token's `firebaseUid` and requires an active profile. Do not rely on email or username matching as an identity-linking fallback; link existing accounts through a trusted provisioning/migration process before enabling their API access. The legacy JWT endpoints remain available during staged migration but their tokens are not accepted by Firebase-token protected routes. The backend still requires `MONGODB_URI` and existing application configuration until the data migration is deliberately completed.
 
 ## 4. Firestore profile structure
 
@@ -95,7 +95,7 @@ The existing Express/Mongo email and JWT endpoints are retained only for staged 
 
 ## 7. Security files
 
-`firestore.rules` denies profile and authorization writes from clients. Attendance reads and writes remain denied directly in Firestore until trusted Functions are implemented; the current attendance API continues to enforce MongoDB authorization. `firestore.indexes.json` is intentionally empty because the current Firebase client integration performs only a direct `users/{uid}` profile lookup.
+`firestore.rules` denies profile and authorization writes from clients. Attendance writes remain denied directly in Firestore; the current attendance API continues to enforce MongoDB authorization. `firestore.indexes.json` is intentionally empty because the current Firebase client integration performs only a direct `users/{uid}` profile lookup.
 
 Before allowing direct Firestore attendance access, implement and test assignment-scoped Rules or trusted Cloud Functions using the final document IDs and ownership model. Never replace the denied rules with `allow read, write: if true`.
 

@@ -21,14 +21,6 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    function noPeriodTiming(data) {
-      return !data.keys().hasAny(['startTime', 'endTime', 'periodStart', 'periodEnd']);
-    }
-
-    function validPeriod(data) {
-      return data.periodNumber is int && data.periodNumber >= 1 && data.periodNumber <= 8;
-    }
-
     match /users/{userId} {
       allow read: if ownUser(userId);
       allow create, update, delete: if false;
@@ -77,18 +69,7 @@ service cloud.firestore {
           && resource.data.teacherId == request.auth.uid)
         || (roleIs('STUDENT')
           && get(/databases/$(database)/documents/students/$(request.auth.uid)).data.classId == resource.data.classId);
-      allow create: if roleIs('TEACHER')
-        && request.resource.data.teacherId == request.auth.uid
-        && validPeriod(request.resource.data)
-        && noPeriodTiming(request.resource.data)
-        && request.resource.data.keys().hasOnly(['date', 'classId', 'subjectId', 'periodNumber', 'teacherId', 'status']);
-      allow update: if roleIs('TEACHER')
-        && resource.data.teacherId == request.auth.uid
-        && request.resource.data.teacherId == request.auth.uid
-        && validPeriod(request.resource.data)
-        && noPeriodTiming(request.resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'classId', 'subjectId', 'periodNumber', 'status']);
-      allow delete: if false;
+      allow write: if false;
     }
 
     match /attendanceRecords/{recordId} {
@@ -96,11 +77,7 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/attendanceSessions/$(resource.data.sessionId)).data.teacherId == request.auth.uid)
         || (roleIs('STUDENT')
           && resource.data.studentId == request.auth.uid);
-      allow create, update: if roleIs('TEACHER')
-        && get(/databases/$(database)/documents/attendanceSessions/$(request.resource.data.sessionId)).data.teacherId == request.auth.uid
-        && request.resource.data.status in ['PRESENT', 'ABSENT', 'OD']
-        && request.resource.data.keys().hasOnly(['sessionId', 'studentId', 'status', 'markedAt', 'updatedAt']);
-      allow delete: if false;
+      allow write: if false;
     }
   }
 }

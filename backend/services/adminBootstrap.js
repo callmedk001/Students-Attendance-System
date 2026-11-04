@@ -46,8 +46,9 @@ export async function ensureAdminBootstrap() {
   }
 
   const email = firebaseEmail(username)
-  const mongoUser = await User.findOne({ username }).lean()
+  const mongoUserByUsername = await User.findOne({ username }).lean()
   const usernameMapping = await firebaseAdminDb.collection('usernames').doc(username).get()
+  const mapping = usernameMapping.exists ? usernameMapping.data() : null
   let firebaseUser = null
 
   try {
@@ -58,68 +59,117 @@ export async function ensureAdminBootstrap() {
     }
   }
 
-  if (mongoUser && usernameMapping.exists && firebaseUser) {
-    return {
-      uid: mongoUser.firebaseUid || firebaseUser.uid,
-      username,
-      role: 'ADMIN',
-      created: false,
-    }
+  const existingUids = new Set([
+    mongoUserByUsername?.firebaseUid,
+    mapping?.uid,
+    firebaseUser?.uid,
+  ].filter(Boolean))
+  if (existingUids.size > 1) {
+    throw new Error('Admin account records do not agree on the Firebase UID; manual reconciliation is required.')
   }
 
-  if (mongoUser || usernameMapping.exists || firebaseUser) {
-    const existingUid = mongoUser?.firebaseUid || firebaseUser?.uid || usernameMapping.data()?.uid
-    if (existingUid && !mongoUser) {
-      const linkedUser = await User.findOne({ firebaseUid: existingUid }).lean()
-      if (linkedUser) {
-        return { uid: existingUid, username, role: linkedUser.role || 'ADMIN', created: false }
+  let createdFirebaseUser = false
+  let uid = [...existingUids][0]
+  if (uid && !firebaseUser) {
+    try {
+      firebaseUser = await firebaseAdminAuth.getUser(uid)
+    } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('Admin account records reference a missing Firebase user; manual reconciliation is required.')
       }
+      throw error
     }
-    return { uid: existingUid || null, username, role: 'ADMIN', created: false }
   }
 
-  const createdUser = await firebaseAdminAuth.createUser({
-    email,
-    password,
-    displayName,
-  })
+  if (!uid) {
+    firebaseUser = await firebaseAdminAuth.createUser({ email, password, displayName })
+    uid = firebaseUser.uid
+    createdFirebaseUser = true
+  }
 
-  const savedUser = await User.create({
-    name: displayName,
-    username,
-    email,
-    firebaseUid: createdUser.uid,
-    role: 'ADMIN',
-    status: 'ACTIVE',
-  })
+  if (firebaseUser.email?.trim().toLowerCase() !== email || firebaseUser.disabled) {
+    throw new Error('Admin Firebase account email or status does not match the configured admin; manual reconciliation is required.')
+  }
+
+  const mongoUserByUid = await User.findOne({ firebaseUid: uid }).lean()
+  if (mongoUserByUsername && mongoUserByUid
+    && mongoUserByUsername._id.toString() !== mongoUserByUid._id.toString()) {
+    throw new Error('Admin username and Firebase UID belong to different MongoDB users; manual reconciliation is required.')
+  }
+
+  const mongoUser = mongoUserByUsername || mongoUserByUid
+  if (mongoUser) {
+    if ((mongoUser.username && mongoUser.username !== username)
+      || mongoUser.email?.trim().toLowerCase() !== email
+      || (mongoUser.firebaseUid && mongoUser.firebaseUid !== uid)
+      || mongoUser.role !== 'ADMIN'
+      || mongoUser.status !== 'ACTIVE') {
+      throw new Error('Existing MongoDB admin profile conflicts with the configured account; manual reconciliation is required.')
+    }
+
+    if (!mongoUser.firebaseUid || !mongoUser.username) {
+      await User.updateOne(
+        { _id: mongoUser._id },
+        { $set: { firebaseUid: uid, username } },
+      )
+    }
+  } else {
+    await User.create({
+      name: displayName,
+      username,
+      email,
+      firebaseUid: uid,
+      role: 'ADMIN',
+      status: 'ACTIVE',
+    })
+  }
+
+  const userProfileRef = firebaseAdminDb.collection('users').doc(uid)
+  const userProfileSnapshot = await userProfileRef.get()
+  const userProfile = userProfileSnapshot.exists ? userProfileSnapshot.data() : null
+  if (userProfile && (
+    (userProfile.uid && userProfile.uid !== uid)
+    || (userProfile.username && userProfile.username !== username)
+    || (userProfile.role && userProfile.role !== 'ADMIN')
+    || userProfile.active === false
+  )) {
+    throw new Error('Existing Firestore admin profile conflicts with the configured account; manual reconciliation is required.')
+  }
+  if (mapping && (
+    (mapping.uid && mapping.uid !== uid)
+    || (mapping.username && mapping.username !== username)
+    || (mapping.role && mapping.role !== 'ADMIN')
+    || mapping.active === false
+  )) {
+    throw new Error('Existing Firestore username mapping conflicts with the configured admin; manual reconciliation is required.')
+  }
 
   const now = new Date()
   const batch = firebaseAdminDb.batch()
-  batch.set(firebaseAdminDb.collection('users').doc(createdUser.uid), {
-    uid: createdUser.uid,
+  batch.set(userProfileRef, {
+    uid,
     username,
     role: 'ADMIN',
     active: true,
-    name: displayName,
+    name: userProfile?.name || displayName,
     email,
-    createdAt: now,
+    createdAt: userProfile?.createdAt || now,
     updatedAt: now,
-  })
+  }, { merge: true })
   batch.set(firebaseAdminDb.collection('usernames').doc(username), {
-    uid: createdUser.uid,
+    uid,
     username,
     role: 'ADMIN',
     active: true,
-    createdAt: now,
+    createdAt: mapping?.createdAt || now,
     updatedAt: now,
-  })
+  }, { merge: true })
   await batch.commit()
 
   return {
-    uid: createdUser.uid,
+    uid,
     username,
     role: 'ADMIN',
-    created: true,
-    mongoId: savedUser._id,
+    created: createdFirebaseUser,
   }
 }

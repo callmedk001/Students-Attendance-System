@@ -53,7 +53,7 @@ export async function resolveUsername(request, response, next) {
     if (!firebaseAdminAuth || !firebaseAdminDb) {
       return response.status(503).json({
         success: false,
-        message: 'Firebase Admin SDK is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in backend/.env.',
+        message: 'Username login is temporarily unavailable.',
       })
     }
 
@@ -69,7 +69,7 @@ export async function resolveUsername(request, response, next) {
 
     const mapping = mappingSnapshot.data()
     if (mapping.active !== true) {
-      return response.status(401).json({ success: false, message: 'This account is inactive.' })
+      return response.status(401).json({ success: false, message: 'Invalid username or password.' })
     }
 
     const { uid, role } = mapping
@@ -79,15 +79,11 @@ export async function resolveUsername(request, response, next) {
 
     const firebaseUser = await firebaseAdminAuth.getUser(uid)
     if (firebaseUser.disabled || !firebaseUser.email) {
-      return response.status(401).json({ success: false, message: 'This account is disabled.' })
+      return response.status(401).json({ success: false, message: 'Invalid username or password.' })
     }
 
     return response.json({
       success: true,
-      uid,
-      username,
-      role,
-      active: mapping.active === true,
       email: firebaseUser.email,
     })
   } catch (error) {
