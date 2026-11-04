@@ -4,6 +4,7 @@ import User from '../models/User.js'
 import { firebaseAdminAuth, firebaseAdminDb } from '../config/firebaseAdmin.js'
 
 const allowedRoles = ['TEACHER', 'STUDENT']
+const allowedLoginRoles = new Set(['ADMIN', ...allowedRoles])
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passwordMinimumLength = 8
 const internalAuthDomain = 'auth.student-attendance.app'
@@ -48,6 +49,10 @@ function isAllowedRegistrationRole(role) {
   return allowedRoles.includes(role)
 }
 
+function isAllowedLoginRole(role) {
+  return allowedLoginRoles.has(role)
+}
+
 export async function resolveUsername(request, response, next) {
   try {
     if (!firebaseAdminAuth || !firebaseAdminDb) {
@@ -73,7 +78,7 @@ export async function resolveUsername(request, response, next) {
     }
 
     const { uid, role } = mapping
-    if (!uid || !allowedRoles.includes(role)) {
+    if (!uid || !isAllowedLoginRole(role)) {
       return response.status(401).json({ success: false, message: 'Invalid username or password.' })
     }
 
@@ -188,4 +193,4 @@ export function logout(_request, response) {
   return response.json({ success: true, message: 'Logged out successfully.' })
 }
 
-export { isAllowedRegistrationRole, normalizeEmail, normalizeUsername, publicUser }
+export { isAllowedLoginRole, isAllowedRegistrationRole, normalizeEmail, normalizeUsername, publicUser }

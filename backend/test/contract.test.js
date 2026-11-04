@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import mongoose from 'mongoose'
 import { app } from '../server.js'
-import { isAllowedRegistrationRole, normalizeEmail, normalizeUsername } from '../controllers/authController.js'
+import { isAllowedLoginRole, isAllowedRegistrationRole, normalizeEmail, normalizeUsername } from '../controllers/authController.js'
 import { parseDate, validatePeriod, validateStatus } from '../controllers/attendanceController.js'
 import { buildDateFilter, buildSessionQuery } from '../controllers/studentController.js'
 import { percentage, summaryFromCounts } from '../utils/attendance.js'
@@ -63,6 +63,10 @@ test('normalizes login identifiers and rejects admin self-registration', () => {
   assert.equal(isAllowedRegistrationRole('TEACHER'), true)
   assert.equal(isAllowedRegistrationRole('STUDENT'), true)
   assert.equal(isAllowedRegistrationRole('ADMIN'), false)
+  assert.equal(isAllowedLoginRole('ADMIN'), true)
+  assert.equal(isAllowedLoginRole('TEACHER'), true)
+  assert.equal(isAllowedLoginRole('STUDENT'), true)
+  assert.equal(isAllowedLoginRole('UNKNOWN'), false)
 })
 
 test('validates attendance dates, periods, and statuses', () => {
