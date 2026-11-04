@@ -130,7 +130,7 @@ This classification reflects the email-based identity-linking path, which could 
 
 ## Remediation follow-up
 
-The user approved remediation after reviewing the findings. In the working tree:
+The user approved remediation after reviewing the findings. The code changes were committed and pushed to `main`:
 
 - Firebase API authentication now requires an exact MongoDB `firebaseUid` match; email and username fallbacks were removed.
 - Admin startup bootstrap now repairs missing MongoDB/Firestore admin linkage for an existing Firebase account only when the UID, expected email, role, and active state agree. Conflicting or inactive records fail closed. The bootstrap password is required only when creating a new Firebase user and does not update the password of an existing account.
@@ -140,11 +140,13 @@ The user approved remediation after reviewing the findings. In the working tree:
 - The ignored local college provisioning script no longer contains roster entries, no longer uses a username-derived password, and now fails closed before any provisioning work. It must not be re-enabled without an approved workflow using synthetic data, safe account enrollment, and explicit safeguards against production data deletion.
 - The Firebase setup documentation now describes UID-only linking and denied Firestore attendance writes.
 
-These are local working-tree changes and have not been committed or deployed. The local Git history scan did not find the ignored provisioning script, so exposure of its roster/password pattern on the checked public-repository history was not established. If the script was run against real accounts, investigate and reset affected accounts using the trusted Firebase administration process; source changes alone do not rotate credentials already provisioned.
+Firebase Hosting and Firestore rules were deployed to the configured Firebase project. The hosted login page returned HTTP 200. The Render backend health endpoint also responded, but the live username-resolution request for the reported admin username continued returning HTTP 401 after the commits were pushed. Therefore, the backend fix is not verified as active in Render, or the Render environment/account linkage still needs attention. Check that Render deployed the latest `main` commit and that `ADMIN_USERNAME`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` are correctly configured for the same Firebase project; do not share their values in logs or support messages.
+
+The local Git history scan did not find the ignored provisioning script, so exposure of its roster/password pattern on the checked public-repository history was not established. If the script was run against real accounts, investigate and reset affected credentials using the trusted Firebase administration process; source changes alone do not rotate credentials already provisioned.
 
 The provisioning script is ignored by `.gitignore`; its local safety change will not appear in normal Git status/diffs and was not force-added. The user should keep the local copy disabled or remove it through their own reviewed repository-cleanup process rather than accidentally publishing its prior contents.
 
-No live credentials could be rotated and no remote Firebase rules, accounts, or services were changed. Verify the deployed backend and Firestore rules after review/deployment.
+No live credentials or existing Firebase account passwords were rotated. No production student/staff records were accessed.
 
 ## Audit scope and limitations
 
